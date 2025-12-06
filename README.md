@@ -8,14 +8,18 @@ This project provides a Python-based GUI to display, filter and highlight real-t
 received via SEGGER's Real-Time Transfer (RTT) debug protocol.
 
 This debug protocol provides direct communication with ARM Cortex-based microcontrollers via J-Link debug probes.
-RTT removes the need for additional debug channels (like UART) by using the ARM Cortex SWD/JTAG interface.
+RTT removes the need for additional debug channels during development (like UART) by using the ARM Cortex SWD/JTAG interface.
 Unlike the slower and clunkier UART debug channel the SWD, JTAG interface provides lean and mean RTT debug messages for ARM MCUs.
 
-This project interfaces directly with the J-Link probe drivers,
-using Segger's Python wrapper `pylink` to receive RTT messages.
-It does not require any other intermediary software.
+This project interfaces directly with the J-Link debug probe drivers,
+using the Python library `pylink` which wraps the JLink drivers to interact with a J-Link debug probe.
+It does NOT require any other intermediary software like Segger's RTT Viewer.
 
-The official documentation and examples for pylink, SEGGER's Python wrapper,
+The pylink library was written by Square Inc. (Now Block Inc.),
+open sourced https://github.com/square/pylink
+and uploaded to PyPI https://pypi.org/project/PyLink/.
+
+The official documentation and examples for the pylink library
 are somewhat lacking when it comes to using the RTT channel,
 so this project may also serve as a practical guide for leveraging `pylink` for RTT communication.
 
@@ -55,7 +59,7 @@ new debug features like data plotting and analysis - capabilities that are not y
 - SEGGER J-Link Software ([Download](https://www.segger.com/downloads/jlink))
 - Required Python packages (Defined in requirements.txt file):
   - FreeSimpleGUI
-  - pylink (Segger's J-Link Python wrapper)
+  - pylink (Python wrapper for J-Link drivers)
 
 ### Embedded Target Setup
 Include the SEGGER RTT library files in your embedded app.
