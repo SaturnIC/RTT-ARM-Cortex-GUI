@@ -1,4 +1,6 @@
 import FreeSimpleGUI as sg
+import json
+import os
 import time
 import queue
 import threading
@@ -31,6 +33,10 @@ class RTTViewer:
         else:
             self._rtt_handler = RTTHandler(self.log_processing_input_queue)
         self.supported_mcu_list = self._rtt_handler.get_supported_mcus()
+        # Load last used MCU history
+        self._mcu_history_file = os.path.join(os.path.dirname(__file__), 'last_mcu_history.json')
+        self.mcu_history = self._load_mcu_history()
+        # Initialize MCU combo values with history
         # GUI setup
         sg.theme('Dark Gray 13')
 
@@ -40,7 +46,8 @@ class RTTViewer:
             [sg.Frame('Configuration', [
                 [sg.Text('MCU Chip Name:', size=(14, 1)),
                 sg.Text("", size=(1, 1)),  # horizontal spacer
-                sg.Combo(self.supported_mcu_list, default_value='DEMO_MCU' if demo else 'STM32F427II',
+                sg.Combo(self._build_mcu_combo_values(),
+                        default_value='DEMO_MCU' if demo else 'STM32F427II',
                         key='-MCU-', size=(20, 1), enable_events=True, auto_size_text=False)],
                 [sg.Text('Interface:', size=(14, 1)),
                 sg.Text("", size=(1, 1)),  # horizontal spacer
@@ -67,6 +74,11 @@ class RTTViewer:
         ]
 
         self._window = sg.Window('ARM Cortex RTT GUI', self._layout, finalize=True, resizable=True)
+        # Set initial MCU selection to the most recently used MCU if available
+        if self.mcu_history:
+            self._window['-MCU-'].update(value=self.mcu_history[0])
+        else:
+            self._window['-MCU-'].update(value='DEMO_MCU' if demo else 'STM32F427II')
 
         # Set minimum size
         self._window.set_min_size((800, 600))
@@ -150,40 +162,83 @@ class RTTViewer:
         #        self.log_view.display_log_update(update_info)
 
     def _filter_mcu_list(self, filter_string):
-            input_text = filter_string.upper()
-            filtered = [mcu for mcu in self.supported_mcu_list if input_text in mcu]
-            self._window['-MCU-'].update(values=filtered)
+        input_text = filter_string.upper()
+        filtered = [mcu for mcu in self.supported_mcu_list if input_text in mcu]
+        self._window['-MCU-'].update(values=filtered)
+
+    def _load_mcu_history(self):
+        try:
+            with open(self._mcu_history_file, 'r') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+        return []
+
+    def _save_mcu_history(self):
+        try:
+            with open(self._mcu_history_file, 'w') as f:
+                json.dump(self.mcu_history, f)
+        except Exception:
+            pass
+
+    def _build_mcu_combo_values(self):
+        combo = []
+        if self.mcu_history:
+            combo.append('--- Last used ---')
+            combo.extend(self.mcu_history)
+        combo.append('--- All ---')
+        combo.extend(self.supported_mcu_list)
+        return combo
+
+    def _update_mcu_combo(self):
+        self._window['-MCU-'].update(values=self._build_mcu_combo_values())
+
+    def _update_mcu_history(self, mcu):
+        if mcu in self.supported_mcu_list:
+            if mcu in self.mcu_history:
+                self.mcu_history.remove(mcu)
+            self.mcu_history.insert(0, mcu)
+            self.mcu_history = self.mcu_history[:10]
+            self._save_mcu_history()
+            self._update_mcu_combo()
 
     def handle_events(self, event, values):
         retVal = True
         if event == sg.WIN_CLOSED:
             retVal = False
-        if event == '-MCU-':
-            self.current_mcu = values['-MCU-']
-            self.mcu_filter_string = ""
-        if event == '-MCU-KEYRELEASE-':
+        elif event == '-MCU-':
+            selected = values['-MCU-']
+            if selected in self.supported_mcu_list:
+                self.current_mcu = selected
+                self.mcu_filter_string = ""
+            else:
+                self._window['-MCU-'].update(value=self.current_mcu if hasattr(self, 'current_mcu') else '')
+        elif event == '-MCU-KEYRELEASE-':
             self.mcu_filter_string = values['-MCU-']
             self.mcu_list_last_update_time = time.time()
-        if event == '-CONNECT-':
+        elif event == '-CONNECT-':
             try:
                 selected_mcu = self._window['-MCU-'].get()
+                self._update_mcu_history(selected_mcu)
                 selected_interface = self._window['-INTERFACE-'].get()
                 if self._rtt_handler.connect(selected_mcu, interface=selected_interface):
                     self._update_gui_status(True)
             except Exception as e:
                 sg.popup_error(str(e))
-        if event == '-DISCONNECT-':
+        elif event == '-DISCONNECT-':
             self._rtt_handler.disconnect()
             self._update_gui_status(False)
-        if event == '-CLEAR-':
+        elif event == '-CLEAR-':
             self.log_handler['clear']()
             log_controller.clear_log_data()
-        if event == '-FILTER-':
+        elif event == '-FILTER-':
             self.filter_input_string = values['-FILTER-']
-        if event == '-HIGHLIGHT-':
+        elif event == '-HIGHLIGHT-':
             # Update the log display when filter or highlight changes
             self.highlight_input_string = values['-HIGHLIGHT-']
-        if event == '-PAUSE-':
+        elif event == '-PAUSE-':
             # Toggle pause state
             current_text = self._window['-PAUSE-'].GetText()
             new_text = 'Unpause' if current_text == 'Pause' else 'Pause'
@@ -208,7 +263,11 @@ class RTTViewer:
                     break
 
                 # Handle widget highlighting
-                input_update = self.log_view.handle_widget_highlighting(self.filter_input_string, self.highlight_input_string, self.mcu_filter_string)
+                input_update = self.log_view.handle_widget_highlighting(
+                    self.filter_input_string,
+                    self.highlight_input_string,
+                    self.mcu_filter_string
+                )
                 if "mcu_string" in input_update:
                     # Check MCU filter
                     applied_mcu_filter_string = input_update["mcu_string"]
@@ -229,10 +288,11 @@ class RTTViewer:
             self._rtt_handler.disconnect()
             self._window.close()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='RTT GUI')
     parser.add_argument('--demo-messages', action='store_true', help='Enable demo mode with sample log messages')
     args = parser.parse_args()
 
     viewer = RTTViewer(demo=args.demo_messages)
-    viewer.run()
+    viewer.run()                # Update history on successful connection
