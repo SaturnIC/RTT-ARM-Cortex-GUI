@@ -11,10 +11,16 @@ from libs.jlink.rtt_handler import RTTHandler
 from libs.jlink.demo_rtt_handler import DemoRTTHandler
 from libs.jlink.rtt_handler_interface import RTTHandlerInterface
 from libs.log.log_view import LogView
+from platformdirs import user_data_dir
+from pathlib import Path
 
 # constants
 LOG_UPDATE_TIME_INTERVAL_ms = 100
+APP_NAME = "RTT_GUI"
+APP_AUTHOR = "SaturnIC"
 
+data_dir = Path(user_data_dir(APP_NAME, APP_AUTHOR))
+data_dir.mkdir(parents=True, exist_ok=True)
 
 class RTTViewer:
     def __init__(self, demo=False):
@@ -34,7 +40,7 @@ class RTTViewer:
             self._rtt_handler = RTTHandler(self.log_processing_input_queue)
         self.supported_mcu_list = self._rtt_handler.get_supported_mcus()
         # Load last used MCU history
-        self._mcu_history_file = os.path.join(os.path.dirname(__file__), 'last_mcu_history.json')
+        self._mcu_history_file = os.path.join(data_dir, 'last_mcu_history.json')
         self.mcu_history = self._load_mcu_history()
         # Initialize MCU combo values with history
         # GUI setup
