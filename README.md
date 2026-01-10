@@ -33,7 +33,9 @@ new debug features like data plotting and analysis - capabilities that are not y
   - [Prerequisites](#prerequisites)
     - [Host Software](#host-software)
     - [Embedded Target Setup](#embedded-target-setup)
-  - [GUI Installation](#gui-installation)
+  - [GUI Setup](#gui-setup)
+    - [Download Executable](#download-executable)
+    - [Manual Installation](#manual-installation)
   - [Usage](#usage)
     - [Start Logging](#start-logging)
     - [Highlight Logs](#highlight-logs)
@@ -76,8 +78,16 @@ void main() {
 }
 ```
 
-## GUI Installation
+## GUI Setup
+- The fastest way is to download and run the GUI executable
 
+### Download Executable
+- Download matching executable (windows or linux) from the releases page:
+  https://github.com/SaturnIC/RTT-ARM-Cortex-GUI/releases
+  ![RTT GUI Release](./docs/releases_executables.png)
+- Run the executable
+
+### Manual Installation
 1. Clone the repository:
    ```bash
    https://github.com/SaturnIC/RTT-ARM-Cortex-GUI.git
@@ -91,19 +101,19 @@ void main() {
    pip install FreeSimpleGUI==5.0.0 pylink
    ```
 3. Ensure that the J-Link drivers are installed and accessible on your system.
-
-## Usage
-
-### Start Logging
-1. Launch the application:
+4. Launch the application:
    ```bash
    python rtt_python_gui.py
    ```
 
-2. Select your target MCU from the dropdown list.
+## Usage
+
+### Start Logging
+
+1. Select your target MCU from the dropdown list.
    Filter MCU list by typing a matching substring in the MCU dropdown widget.
 
-3. Click "Connect" to establish a connection.
+2. Click "Connect" to establish a connection.
 
 ### Highlight Logs
 Enter text in highlight box to highlight matching messages
