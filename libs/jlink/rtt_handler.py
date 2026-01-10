@@ -93,14 +93,14 @@ class RTTHandler(RTTHandlerInterface):
                     ff_clean_string = ansi_clean_string.replace(b'\n\xff0', b'\n').replace(b'\n\xff', b'\n')
                     latin_string = ff_clean_string.decode('utf-8', errors='ignore') # first two bytes used in header?
                     full_string = self._buffer + latin_string
+                    # parse lines
+                    lines = full_string.replace('\r', '').split('\n')
                     if full_string.endswith('\n'):
-                        # Complete data, process all lines
-                        lines = full_string.split('\n')
+                        # Complete data, forward all lines
                         self._insert_lines_in_log_processing_queue(lines)
                         self._buffer = ""
                     else:
                         # Incomplete data, accumulate in buffer
-                        lines = full_string.split('\n')
                         self._insert_lines_in_log_processing_queue(lines[:-1])
                         self._buffer = lines[-1]
 
