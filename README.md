@@ -2,8 +2,25 @@
 
 ![RTT GUI Screenshot](./docs/arm_cortex_rtt_gui_new_wt.png)
 
-## Overview
+## Table of Contents
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Prerequisites](#prerequisites)
+  - [Host Software](#host-software)
+  - [Embedded Target Setup](#embedded-target-setup)
+- [GUI Setup](#gui-setup)
+  - [Download Executable](#download-executable)
+  - [Manual Installation](#manual-installation)
+- [Usage](#usage)
+  - [Start Logging](#start-logging)
+  - [Highlight Logs](#highlight-logs)
+  - [Filter Logs](#filter-logs)
+  - [Disconnect From MCU](#disconnect-from-mcu)
+  - [Clear the Log View](#clear-the-log-view)
+- [License](#license)
+- [Contact](#contact)
 
+## Overview
 This project provides a Python-based GUI to display, filter and highlight real-time ARM Cortex microcontroller log messages
 received via SEGGER's Real-Time Transfer (RTT) debug protocol.
 
@@ -26,25 +43,6 @@ so this project may also serve as a practical guide for leveraging `pylink` for 
 Since messages are processed directly in Python,
 it should be straightforward, to extend the functionality of this GUI with other
 new debug features like data plotting and analysis - capabilities that are not yet available in SEGGER's RTT applications.
-
-## Table of Contents
-- [ARM Cortex RTT SWD/JTAG Logging GUI](#arm-cortex-swd/jtag-logging-gui)
-  - [Key Features](#key-features)
-  - [Prerequisites](#prerequisites)
-    - [Host Software](#host-software)
-    - [Embedded Target Setup](#embedded-target-setup)
-  - [GUI Setup](#gui-setup)
-    - [Download Executable](#download-executable)
-    - [Manual Installation](#manual-installation)
-  - [Usage](#usage)
-    - [Start Logging](#start-logging)
-    - [Highlight Logs](#highlight-logs)
-    - [Filter Logs](#filter-logs)
-    - [Disconnect From MCU](#disconnect-from-mcu)
-    - [Clear the Log View](#clear-the-log-view)
-  - [License](#license)
-  - [Contact](#contact)
-
 
 ## Key Features
 - Direct J-Link connection using native drivers (no RTTViewer required)
