@@ -199,13 +199,17 @@ class RTTViewer:
         return combo
 
     def _update_mcu_combo(self):
+        selected_mcu = self._window['-MCU-'].get()
         self._window['-MCU-'].update(values=self._build_mcu_combo_values())
+        self._window['-MCU-'].update(value=selected_mcu)
 
     def _update_mcu_history(self, mcu):
         if mcu in self.supported_mcu_list:
             if mcu in self.mcu_history:
-                self.mcu_history.remove(mcu)
-            self.mcu_history.insert(0, mcu)
+                pass
+                #self.mcu_history.remove(mcu)
+            else:
+                self.mcu_history.insert(0, mcu)
             self.mcu_history = self.mcu_history[:10]
             self._save_mcu_history()
             self._update_mcu_combo()
