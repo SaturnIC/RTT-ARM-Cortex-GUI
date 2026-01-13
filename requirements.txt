@@ -1,3 +1,4 @@
 FreeSimpleGUI==5.0.0
 pylink-square
 platformdirs
+matplotlib

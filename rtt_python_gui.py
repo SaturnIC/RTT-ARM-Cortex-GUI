@@ -5,6 +5,8 @@ import time
 import queue
 import threading
 import argparse
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import libs.log.log_controller as log_controller
 from datetime import datetime
 from libs.jlink.rtt_handler import RTTHandler
@@ -13,6 +15,8 @@ from libs.jlink.rtt_handler_interface import RTTHandlerInterface
 from libs.log.log_view import LogView
 from platformdirs import user_data_dir
 from pathlib import Path
+import fnmatch
+import re
 
 # constants
 LOG_UPDATE_TIME_INTERVAL_ms = 100
@@ -51,6 +55,24 @@ class RTTViewer:
         sg.theme('Dark Gray 13')
 
         # Create layout with new filter, highlight, and pause elements
+        log_tab = [
+            [sg.Multiline(size=(80, 20), key='-LOG-', expand_x=True, expand_y=True, font=('Consolas', 10))],
+            [sg.Column([
+                [sg.Text('Filter:'),
+                 sg.Input(key='-FILTER-', size=(20, 1), enable_events=True),
+                 sg.Text('Highlight:'),
+                 sg.Input(key='-HIGHLIGHT-', size=(20, 1), enable_events=True),
+                 sg.Button('Pause', key='-PAUSE-', disabled=False),
+                 sg.Button('Clear', key='-CLEAR-'),
+                 sg.Button('Save', key='-SAVE-')]
+            ])]
+        ]
+
+        plot_tab = [
+            [sg.Text('Glob Pattern:'), sg.Input(key='-PLOT_PATTERN-', size=(40, 1), enable_events=True), sg.Button('Update Plot', key='-UPDATE_PLOT-')],
+            [sg.Canvas(key='-CANVAS-', size=(640, 480))]
+        ]
+
         self._layout = [
             [sg.Text('ARM Cortex RTT GUI', size=(20, 1), justification='center')],
             [sg.Frame('Configuration', [
@@ -70,18 +92,10 @@ class RTTViewer:
                 [sg.Text('Status: Disconnected', key='-STATUS-', size=(20, 1))]
                 ], pad=((20,10),(10,10)))
             ],
-            [sg.Frame('Log', [
-                [sg.Multiline(size=(80, 20), key='-LOG-', expand_x=True, expand_y=True, font=('Consolas', 10))],
-                [sg.Column([
-                    [sg.Text('Filter:'),
-                     sg.Input(key='-FILTER-', size=(20, 1), enable_events=True),
-                     sg.Text('Highlight:'),
-                     sg.Input(key='-HIGHLIGHT-', size=(20, 1), enable_events=True),
-                     sg.Button('Pause', key='-PAUSE-', disabled=False),
-                     sg.Button('Clear', key='-CLEAR-'),
-                     sg.Button('Save', key='-SAVE-')]
-                ])]
-            ], expand_x=True, expand_y=True, pad=((10,10),(10,20)))]
+            [sg.TabGroup([
+                [sg.Tab('Log', log_tab, key='-LOG_TAB-'),
+                 sg.Tab('Plot', plot_tab, key='-PLOT_TAB-')]
+            ], expand_x=True, expand_y=True)]
         ]
 
         self._window = sg.Window('ARM Cortex RTT GUI', self._layout, finalize=True, resizable=True)
@@ -118,6 +132,13 @@ class RTTViewer:
         # Create log handler
         self.log_handler = log_controller.create_log_processor_and_displayer(self.log_view)
 
+        # Plot data
+        self.plot_data = []
+        self.plot_pattern = ""
+
+        # Initialize plot
+        self._update_plot()
+
         self.demo = demo
 
     def _update_gui_status(self, connected):
@@ -139,6 +160,10 @@ class RTTViewer:
                 filter_string = log_input["filter_string"] if "filter_string" in log_input else None
                 highlight_string = log_input["highlight_string"] if "highlight_string" in log_input else None
                 pause_string = log_input["pause_string"] if "pause_string" in log_input else None
+
+                # Extract plot data
+                if line and self.plot_pattern:
+                    self._extract_plot_data(line)
 
                 # Invoke processing
                 update_info = self.log_handler["process"](line, filter_string, highlight_string, pause_string)
@@ -225,6 +250,41 @@ class RTTViewer:
             self._save_config()
             self._update_mcu_combo()
 
+    def _extract_plot_data(self, line):
+        # Check if line matches the glob pattern
+        glob_pattern = self.plot_pattern.replace('N', '*')
+        if fnmatch.fnmatch(line, glob_pattern):
+            # Create regex by replacing N with number pattern
+            regex_pattern = re.escape(self.plot_pattern).replace(r'\N', r'(\d+(?:\.\d+)?)')
+            match = re.search(regex_pattern, line)
+            if match:
+                try:
+                    value = float(match.group(1))
+                    timestamp = time.time()
+                    self.plot_data.append((timestamp, value))
+                except ValueError:
+                    pass  # Ignore if not a number
+
+    def _update_plot(self):
+        canvas_elem = self._window['-CANVAS-']
+        canvas = canvas_elem.TKCanvas
+        fig = plt.Figure(figsize=(6, 4))
+        ax = fig.add_subplot(111)
+        if self.plot_data:
+            times, values = zip(*self.plot_data)
+            ax.plot(times, values)
+            ax.set_xlabel('Time (s)')
+            ax.set_ylabel('Value')
+            ax.set_title('Plot Data')
+        else:
+            ax.text(0.5, 0.5, 'No data', transform=ax.transAxes, ha='center', va='center')
+        # Clear previous figure
+        for item in canvas.winfo_children():
+            item.destroy()
+        canvas_agg = FigureCanvasTkAgg(fig, master=canvas)
+        canvas_agg.draw()
+        canvas_agg.get_tk_widget().pack(fill='both', expand=True)
+
     def handle_events(self, event, values):
         retVal = True
         if event == sg.WIN_CLOSED:
@@ -255,8 +315,8 @@ class RTTViewer:
             self._update_gui_status(False)
         elif event == '-CLEAR-':
             self.log_handler['clear']()
-            log_controller.clear_log_data()
             self.log_view.clear_log()
+            self.plot_data = []
         elif event == '-SAVE-':
             # Open a file save dialog
             save_path = sg.popup_get_file('Save log', save_as=True, no_window=False, default_extension='txt')
@@ -281,6 +341,10 @@ class RTTViewer:
             self._window['-PAUSE-'].update(new_text)
             # Trigger update to show accumulated messages if unpaused
             self.log_processing_input_queue.put({"pause_string": new_text})
+        elif event == '-PLOT_PATTERN-':
+            self.plot_pattern = values['-PLOT_PATTERN-']
+        elif event == '-UPDATE_PLOT-':
+            self._update_plot()
         return retVal
 
     def run(self):
