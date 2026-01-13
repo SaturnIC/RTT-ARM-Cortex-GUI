@@ -82,10 +82,12 @@ class RTTViewer:
 
         self._window = sg.Window('ARM Cortex RTT GUI', self._layout, finalize=True, resizable=True)
         # Set initial MCU selection to the most recently used MCU if available
-        if self.mcu_history:
+        if demo:
+            self._window['-MCU-'].update(value='DEMO_MCU')
+        elif self.mcu_history:
             self._window['-MCU-'].update(value=self.mcu_history[0])
         else:
-            self._window['-MCU-'].update(value='DEMO_MCU' if demo else 'STM32F427II')
+            self._window['-MCU-'].update(value='STM32F427II')
 
         # Set minimum size
         self._window.set_min_size((800, 600))
