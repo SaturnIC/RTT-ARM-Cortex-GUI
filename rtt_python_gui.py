@@ -74,7 +74,8 @@ class RTTViewer:
                      sg.Text('Highlight:'),
                      sg.Input(key='-HIGHLIGHT-', size=(20, 1), enable_events=True),
                      sg.Button('Pause', key='-PAUSE-', disabled=False),
-                     sg.Button('Clear', key='-CLEAR-')]
+                     sg.Button('Clear', key='-CLEAR-'),
+                     sg.Button('Save', key='-SAVE-')]
                 ])]
             ], expand_x=True, expand_y=True, pad=((10,10),(10,20)))]
         ]
@@ -243,6 +244,18 @@ class RTTViewer:
         elif event == '-CLEAR-':
             self.log_handler['clear']()
             log_controller.clear_log_data()
+        elif event == '-SAVE-':
+            # Open a file save dialog
+            save_path = sg.popup_get_file('Save log', save_as=True, no_window=False, default_extension='txt')
+            if save_path:
+                try:
+                    # Retrieve raw log lines from the log_controller module
+                    raw_lines = getattr(log_controller, 'old_raw_log_lines', [])
+                    with open(save_path, 'w', encoding='utf-8') as f:
+                        for line, _ in raw_lines:
+                            f.write(line + '\n')
+                except Exception as e:
+                    sg.popup_error(f'Failed to save log: {e}')
         elif event == '-FILTER-':
             self.filter_input_string = values['-FILTER-']
         elif event == '-HIGHLIGHT-':
