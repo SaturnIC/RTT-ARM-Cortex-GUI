@@ -16,11 +16,13 @@ from pathlib import Path
 
 # constants
 LOG_UPDATE_TIME_INTERVAL_ms = 100
+
+# configure config file path
 APP_NAME = "RTT_GUI"
 APP_AUTHOR = "SaturnIC"
-
-data_dir = Path(user_data_dir(APP_NAME, APP_AUTHOR))
-data_dir.mkdir(parents=True, exist_ok=True)
+CONFIG_FILE_NAME = "config.json"
+config_file_dir = Path(user_data_dir(APP_NAME, APP_AUTHOR))
+config_file_dir.mkdir(parents=True, exist_ok=True)
 
 class RTTViewer:
     def __init__(self, demo=False):
@@ -39,9 +41,11 @@ class RTTViewer:
         else:
             self._rtt_handler = RTTHandler(self.log_processing_input_queue)
         self.supported_mcu_list = self._rtt_handler.get_supported_mcus()
-        # Load last used MCU history
-        self._mcu_history_file = os.path.join(data_dir, 'last_mcu_history.json')
-        self.mcu_history = self._load_mcu_history()
+        # Load configuration
+        self._config_file_path = os.path.join(config_file_dir, CONFIG_FILE_NAME)
+        config = self._load_config()
+        self.mcu_history = config.get('mcu_history', [])
+        self.last_interface = config.get('last_interface', 'SWD')
         # Initialize MCU combo values with history
         # GUI setup
         sg.theme('Dark Gray 13')
@@ -57,7 +61,7 @@ class RTTViewer:
                         key='-MCU-', size=(20, 1), enable_events=True, auto_size_text=False)],
                 [sg.Text('Interface:', size=(14, 1)),
                 sg.Text("", size=(1, 1)),  # horizontal spacer
-                sg.Combo(['SWD', 'JTAG'], default_value='SWD',
+                sg.Combo(['SWD', 'JTAG'], default_value=self.last_interface,
                         key='-INTERFACE-', size=(10, 1), auto_size_text=False)],
                 ], pad=((10,30),(10,10))),
             sg.Frame('Connection', [
@@ -175,20 +179,24 @@ class RTTViewer:
         filtered = [mcu for mcu in self.supported_mcu_list if input_text in mcu]
         self._window['-MCU-'].update(values=filtered)
 
-    def _load_mcu_history(self):
+    def _load_config(self):
         try:
-            with open(self._mcu_history_file, 'r') as f:
+            with open(self._config_file_path, 'r') as f:
                 data = json.load(f)
-                if isinstance(data, list):
+                if isinstance(data, dict):
                     return data
         except Exception:
             pass
-        return []
+        return {'mcu_history': [], 'last_interface': 'SWD'}
 
-    def _save_mcu_history(self):
+    def _save_config(self):
         try:
-            with open(self._mcu_history_file, 'w') as f:
-                json.dump(self.mcu_history, f)
+            config = {
+                'mcu_history': self.mcu_history,
+                'last_interface': self.last_interface
+            }
+            with open(self._config_file_path, 'w') as f:
+                json.dump(config, f)
         except Exception:
             pass
 
@@ -214,7 +222,7 @@ class RTTViewer:
             else:
                 self.mcu_history.insert(0, mcu)
             self.mcu_history = self.mcu_history[:10]
-            self._save_mcu_history()
+            self._save_config()
             self._update_mcu_combo()
 
     def handle_events(self, event, values):
@@ -236,6 +244,8 @@ class RTTViewer:
                 selected_mcu = self._window['-MCU-'].get()
                 self._update_mcu_history(selected_mcu)
                 selected_interface = self._window['-INTERFACE-'].get()
+                self.last_interface = selected_interface
+                self._save_config()
                 if self._rtt_handler.connect(selected_mcu, interface=selected_interface):
                     self._update_gui_status(True)
             except Exception as e:
