@@ -50,6 +50,7 @@ class RTTViewer:
         config = self._load_config()
         self.mcu_history = config.get('mcu_history', [])
         self.last_interface = config.get('last_interface', 'SWD')
+        self.data_series = config.get('data_series', [])
         # Initialize MCU combo values with history
         # GUI setup
         sg.theme('Dark Gray 13')
@@ -66,6 +67,29 @@ class RTTViewer:
                  sg.Button('Clear', key='-CLEAR-'),
                  sg.Button('Save', key='-SAVE-')]
             ])]
+        ]
+
+        # Data Series tab
+        data_series_tab = [
+            [sg.Text('Data Series Configuration', font=('Arial', 12, 'bold'))],
+            [sg.HorizontalSeparator()],
+            [sg.Text('Series Name:'), sg.Input(key='-SERIES_NAME-', size=(25, 1))],
+            [sg.Text('Glob Pattern (use <N> for number):'), sg.Input(key='-SERIES_PATTERN-', size=(40, 1))],
+            [sg.Button('Add Series', key='-ADD_SERIES-'), sg.Button('Remove Series', key='-REMOVE_SERIES-')],
+            [sg.HorizontalSeparator()],
+            [sg.Column([
+                [sg.Text('Defined Series:', font=('Arial', 10, 'bold'))],
+                [sg.Listbox(values=[f"{s['name']}: {s['pattern']}" for s in self.data_series],
+                           key='-SERIES_LIST-', size=(40, 8), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True)]
+            ]),
+            sg.Column([
+                [sg.Text('Active Series (Ctrl+Click to select multiple):', font=('Arial', 10, 'bold'))],
+                [sg.Listbox(values=[s['name'] for s in self.data_series],
+                           key='-ACTIVE_SERIES-', size=(25, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED, enable_events=True)]
+            ])],
+            [sg.HorizontalSeparator()],
+            [sg.Text('Recorded Values for Selected Series:', font=('Arial', 10, 'bold'))],
+            [sg.Multiline(size=(70, 10), key='-SERIES_VALUES-', expand_x=True, font=('Consolas', 9))]
         ]
 
         plot_tab = [
@@ -94,6 +118,7 @@ class RTTViewer:
             ],
             [sg.TabGroup([
                 [sg.Tab('Log', log_tab, key='-LOG_TAB-'),
+                 sg.Tab('Data Series', data_series_tab, key='-DATA_SERIES_TAB-'),
                  sg.Tab('Plot', plot_tab, key='-PLOT_TAB-')]
             ], expand_x=True, expand_y=True)]
         ]
@@ -135,6 +160,9 @@ class RTTViewer:
         # Plot data
         self.plot_data = []
         self.plot_pattern = ""
+        self.active_series_names = []
+        self.series_data = {}  # Dictionary to store recorded values for each series
+        self.selected_series_for_view = ""  # Currently selected series for viewing values
 
         # Initialize plot
         self._update_plot()
@@ -218,7 +246,8 @@ class RTTViewer:
         try:
             config = {
                 'mcu_history': self.mcu_history,
-                'last_interface': self.last_interface
+                'last_interface': self.last_interface,
+                'data_series': self.data_series
             }
             with open(self._config_file_path, 'w') as f:
                 json.dump(config, f)
@@ -251,19 +280,32 @@ class RTTViewer:
             self._update_mcu_combo()
 
     def _extract_plot_data(self, line):
-        # Check if line matches the glob pattern
-        glob_pattern = self.plot_pattern.replace('N', '*')
-        if fnmatch.fnmatch(line, glob_pattern):
-            # Create regex by replacing N with number pattern
-            regex_pattern = re.escape(self.plot_pattern).replace(r'\N', r'(\d+(?:\.\d+)?)')
-            match = re.search(regex_pattern, line)
-            if match:
-                try:
-                    value = float(match.group(1))
-                    timestamp = time.time()
-                    self.plot_data.append((timestamp, value))
-                except ValueError:
-                    pass  # Ignore if not a number
+        # Extract data for all active series
+        for series_name in self.active_series_names:
+            series = next((s for s in self.data_series if s['name'] == series_name), None)
+            if not series:
+                continue
+
+            pattern = series['pattern']
+            glob_pattern = pattern.replace('N', '*')
+            if fnmatch.fnmatch(line, glob_pattern):
+                # Create regex by replacing N with number pattern
+                regex_pattern = re.escape(pattern).replace(r'\N', r'(\d+(?:\.\d+)?)')
+                match = re.search(regex_pattern, line)
+                if match:
+                    try:
+                        value = float(match.group(1))
+                        timestamp = time.time()
+
+                        # Store in series-specific data
+                        if series_name not in self.series_data:
+                            self.series_data[series_name] = []
+                        self.series_data[series_name].append((timestamp, value))
+
+                        # Also add to plot data (for backward compatibility)
+                        self.plot_data.append((timestamp, value))
+                    except ValueError:
+                        pass  # Ignore if not a number
 
     def _update_plot(self):
         canvas_elem = self._window['-CANVAS-']
@@ -317,6 +359,8 @@ class RTTViewer:
             self.log_handler['clear']()
             self.log_view.clear_log()
             self.plot_data = []
+            self.series_data = {}  # Clear all series data
+            self._update_series_values_view()
         elif event == '-SAVE-':
             # Open a file save dialog
             save_path = sg.popup_get_file('Save log', save_as=True, no_window=False, default_extension='txt')
@@ -343,9 +387,110 @@ class RTTViewer:
             self.log_processing_input_queue.put({"pause_string": new_text})
         elif event == '-PLOT_PATTERN-':
             self.plot_pattern = values['-PLOT_PATTERN-']
+        elif event == '-ADD_SERIES-':
+            name = values['-SERIES_NAME-'].strip()
+            pattern = values['-SERIES_PATTERN-'].strip()
+            if name and pattern:
+                # Check if series name already exists
+                if any(s['name'] == name for s in self.data_series):
+                    sg.popup_error('A series with this name already exists!')
+                else:
+                    self.data_series.append({'name': name, 'pattern': pattern})
+                    self._update_series_ui()
+                    self._save_config()
+                    # Clear input fields
+                    self._window['-SERIES_NAME-'].update('')
+                    self._window['-SERIES_PATTERN-'].update('')
+            else:
+                sg.popup_error('Please enter both a name and a pattern!')
+        elif event == '-REMOVE_SERIES-':
+            selected_indices = self._window['-SERIES_LIST-'].get_indexes()
+            if selected_indices:
+                index = selected_indices[0]
+                removed_series = self.data_series.pop(index)
+                # Remove from active series if present
+                if removed_series['name'] in self.active_series_names:
+                    self.active_series_names.remove(removed_series['name'])
+                # Remove stored data for this series
+                if removed_series['name'] in self.series_data:
+                    del self.series_data[removed_series['name']]
+                # Update plot pattern from first active series if available
+                if self.active_series_names:
+                    first_active = next((s for s in self.data_series if s['name'] == self.active_series_names[0]), None)
+                    if first_active:
+                        self.plot_pattern = first_active['pattern']
+                        self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
+                else:
+                    self.plot_pattern = ""
+                    self.plot_data = []
+                    self._window['-PLOT_PATTERN-'].update('')
+                self._update_series_ui()
+                self._save_config()
+            else:
+                sg.popup_error('Please select a series to remove!')
+        elif event == '-ACTIVE_SERIES-':
+            selected_indices = self._window['-ACTIVE_SERIES-'].get_indexes()
+            if selected_indices:
+                # Get selected series names
+                self.active_series_names = [self.data_series[i]['name'] for i in selected_indices]
+                # Update plot pattern from first active series
+                if self.active_series_names:
+                    first_active = next((s for s in self.data_series if s['name'] == self.active_series_names[0]), None)
+                    if first_active:
+                        self.plot_pattern = first_active['pattern']
+                        self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
+                else:
+                    self.plot_pattern = ""
+                    self._window['-PLOT_PATTERN-'].update('')
+
+                # Update the series values view for the first selected series
+                if self.active_series_names:
+                    self.selected_series_for_view = self.active_series_names[0]
+                    self._update_series_values_view()
+        elif event == '-SERIES_LIST-':
+            # When clicking on a series in the defined list, show its values
+            selected_indices = self._window['-SERIES_LIST-'].get_indexes()
+            if selected_indices:
+                series_name = self.data_series[selected_indices[0]]['name']
+                self.selected_series_for_view = series_name
+                self._update_series_values_view()
         elif event == '-UPDATE_PLOT-':
             self._update_plot()
         return retVal
+
+    def _update_series_ui(self):
+        """Update the series listbox and active series listbox"""
+        self._window['-SERIES_LIST-'].update(
+            values=[f"{s['name']}: {s['pattern']}" for s in self.data_series]
+        )
+        self._window['-ACTIVE_SERIES-'].update(
+            values=[s['name'] for s in self.data_series]
+        )
+
+    def _update_series_values_view(self):
+        """Update the series values view with recorded data"""
+        if not self.selected_series_for_view or self.selected_series_for_view not in self.series_data:
+            self._window['-SERIES_VALUES-'].update('')
+            return
+
+        data = self.series_data[self.selected_series_for_view]
+        if not data:
+            self._window['-SERIES_VALUES-'].update('No recorded values yet.')
+            return
+
+        # Format the data for display
+        lines = [f"Series: {self.selected_series_for_view}"]
+        lines.append(f"Total values: {len(data)}")
+        lines.append("-" * 50)
+        lines.append(f"{'Timestamp':<20} {'Value':<15}")
+        lines.append("-" * 50)
+
+        start_time = data[0][0] if data else 0
+        for timestamp, value in data:
+            relative_time = timestamp - start_time
+            lines.append(f"{relative_time:>8.3f}s        {value:>10.3f}")
+
+        self._window['-SERIES_VALUES-'].update('\n'.join(lines))
 
     def run(self):
         # Start log processing thread
@@ -383,6 +528,10 @@ class RTTViewer:
                 if current_time - self.last_processed_time >= self.log_update_time_interval_s:
                     self._process_display_output_queue()
                     self.last_processed_time = current_time
+
+                    # Update series values view if a series is selected
+                    if self.selected_series_for_view:
+                        self._update_series_values_view()
 
         finally:
             self._rtt_handler.disconnect()
