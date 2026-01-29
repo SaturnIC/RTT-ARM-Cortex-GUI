@@ -30,6 +30,9 @@ class LogView:
         self.active_highlight_string = ""
         self.active_filter_string = ""
         self.active_mcu_string = ""
+        self.filter_input_active = False
+        self.highlight_input_active = False
+        self.mcu_input_active = False
         # configure tags
         self.log_widget.Widget.tag_config("highlight", foreground="LightGreen")
         # log state
@@ -88,42 +91,57 @@ class LogView:
         retVal = {}
         current_time = time.time()
 
-        # Handle change of input
+        # handle change of inputs
+        ## filter input
         if self.last_filter_input != filter_input:
             self.last_filter_input = filter_input
             self.last_filter_change_time = current_time
+            self.filter_input_active = True
             self.handle_coloring_of_input_widget(True, "-FILTER-")
+        ## highlight input
         if self.last_highlight_input != highlight_input:
             self.last_highlight_input = highlight_input
             self.last_highlight_change_time = current_time
+            self.highlight_input_active = True
             self.handle_coloring_of_input_widget(True, "-HIGHLIGHT-")
+        ## mcu input
         if self.last_mcu_input != mcu_input:
             self.last_mcu_input = mcu_input
             self.last_mcu_change_time = current_time
+            self.mcu_input_active = True
             self.handle_coloring_of_input_widget(True, "-MCU-")
 
         # Handle application of changed input stings
         ## highlight input widget
         if (current_time - self.last_filter_change_time > FILTER_APPLICATION_WAIT_TIME_s) \
-           and (self.active_filter_string != self.last_filter_input):
-            # change timer expired for new filter string
-            self.active_filter_string = self.last_filter_input
+           and (self.filter_input_active == True):
+            if (self.active_filter_string != self.last_filter_input):
+                # change timer expired for new filter string
+                self.active_filter_string = self.last_filter_input
+                retVal["filter_string"] = self.active_filter_string
+            # disable highlighting
             self.handle_coloring_of_input_widget(False, "-FILTER-")
-            retVal["filter_string"] = self.active_filter_string
+            self.filter_input_active = False
         ## highlight input widget
         if (current_time - self.last_highlight_change_time > FILTER_APPLICATION_WAIT_TIME_s) \
-           and (self.active_highlight_string != self.last_highlight_input):
-            # change timer expired for new highlight string
-            self.active_highlight_string = self.last_highlight_input
+           and (self.highlight_input_active == True):
+            if (self.active_highlight_string != self.last_highlight_input):
+                # change timer expired for new highlight string
+                self.active_highlight_string = self.last_highlight_input
+                retVal["highlight_string"] = self.active_highlight_string
+            # disable highlighting
             self.handle_coloring_of_input_widget(False, "-HIGHLIGHT-")
-            retVal["highlight_string"] = self.active_highlight_string
+            self.highlight_input_active = False
         ## highlight mcu widget
         if (current_time - self.last_mcu_change_time > FILTER_APPLICATION_WAIT_TIME_s) \
-           and (self.active_mcu_string != self.last_mcu_input):
-            # change timer expired for new mcu string
-            self.active_mcu_string = self.last_mcu_input
+           and (self.mcu_input_active == True):
+            if (self.active_mcu_string != self.last_mcu_input):
+                # change timer expired for new mcu string
+                self.active_mcu_string = self.last_mcu_input
+                retVal["mcu_string"] = self.active_mcu_string
+            # disable highlighting
             self.handle_coloring_of_input_widget(False, "-MCU-")
-            retVal["mcu_string"] = self.active_mcu_string
+            self.mcu_input_active = False
 
         return retVal
 
