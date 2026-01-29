@@ -38,6 +38,7 @@ class LogView:
     def clear_log(self):
         self.update_log("", append=False)
         self.current_line_no = 1
+        self.log_widget.Widget.tag_config("highlight", foreground="LightGreen")
 
     def insert_highlighted_text(self, highlighted_text_list):
         if not highlighted_text_list:

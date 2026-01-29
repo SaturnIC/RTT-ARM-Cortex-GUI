@@ -256,6 +256,7 @@ class RTTViewer:
         elif event == '-CLEAR-':
             self.log_handler['clear']()
             log_controller.clear_log_data()
+            self.log_view.clear_log()
         elif event == '-SAVE-':
             # Open a file save dialog
             save_path = sg.popup_get_file('Save log', save_as=True, no_window=False, default_extension='txt')
