@@ -93,7 +93,7 @@ class RTTViewer:
         ]
 
         plot_tab = [
-            [sg.Text('Glob Pattern:'), sg.Input(key='-PLOT_PATTERN-', size=(40, 1), enable_events=True), sg.Button('Update Plot', key='-UPDATE_PLOT-')],
+            [sg.Text('Data Series:'), sg.Combo([], key='-PLOT_SERIES-', size=(40, 1), enable_events=True, readonly=True)],
             [sg.Canvas(key='-CANVAS-', size=(640, 480))]
         ]
 
@@ -158,11 +158,19 @@ class RTTViewer:
         self.log_handler = log_controller.create_log_processor_and_displayer(self.log_view)
 
         # Plot data
-        self.plot_pattern = ""
-        self.active_series_names = []
+        self.selected_plot_series = ""
+        self.active_series_names = [s['name'] for s in self.data_series]
         self.series_data = {}  # Dictionary to store recorded values for each series
         self.selected_series_for_view = ""  # Currently selected series for viewing values
         self._last_series_values_content = ""
+        self._last_plot_data_lengths = {}
+        self.plot_fig = None
+        self.plot_ax = None
+        self.plot_canvas_agg = None
+        self.plot_lines = {}
+
+        # Populate series UI with loaded data
+        self._update_series_ui()
 
         # Initialize plot
         self._update_plot()
@@ -320,35 +328,42 @@ class RTTViewer:
     def _update_plot(self):
         canvas_elem = self._window['-CANVAS-']
         canvas = canvas_elem.TKCanvas
-        fig = plt.Figure(figsize=(6, 4))
-        ax = fig.add_subplot(111)
+
+        # Initialize figure and axes on first call
+        if self.plot_fig is None:
+            for item in canvas.winfo_children():
+                item.destroy()
+            self.plot_fig = plt.Figure(figsize=(6, 4))
+            self.plot_ax = self.plot_fig.add_subplot(111)
+            self.plot_canvas_agg = FigureCanvasTkAgg(self.plot_fig, master=canvas)
+            self.plot_canvas_agg.get_tk_widget().pack(fill='both', expand=True)
+
+        self.plot_ax.clear()
+        self.plot_lines = {}
         has_data = False
         colors = ['b', 'r', 'g', 'm', 'c', 'y', 'k']
+
         for i, series_name in enumerate(self.active_series_names):
             if series_name in self.series_data and self.series_data[series_name]:
                 has_data = True
                 data = self.series_data[series_name]
                 start_time = data[0][0]
-                # data entries: (timestamp, value, group_index)
                 values = [d[1] for d in data]
                 times = [d[0] - start_time for d in data]
                 color = colors[i % len(colors)]
-                ax.plot(times, values, label=series_name, color=color, linewidth=1)
+                line, = self.plot_ax.plot(times, values, label=series_name, color=color, linewidth=1)
+                self.plot_lines[series_name] = line
+
         if has_data:
-            ax.set_xlabel('Time (s)')
-            ax.set_ylabel('Value')
-            ax.set_title('Plot Data')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            self.plot_ax.set_xlabel('Time (s)')
+            self.plot_ax.set_ylabel('Value')
+            self.plot_ax.set_title('Plot Data')
+            self.plot_ax.legend()
+            self.plot_ax.grid(True, alpha=0.3)
         else:
-            ax.text(0.5, 0.5, 'No data', transform=ax.transAxes, ha='center', va='center')
-        # Clear previous figure
-        for item in canvas.winfo_children():
-            item.destroy()
-        canvas_agg = FigureCanvasTkAgg(fig, master=canvas)
-        canvas_agg.draw()
-        canvas_agg.get_tk_widget().pack(fill='both', expand=True)
-        plt.close(fig)
+            self.plot_ax.text(0.5, 0.5, 'No data', transform=self.plot_ax.transAxes, ha='center', va='center')
+
+        self.plot_canvas_agg.draw()
 
     def handle_events(self, event, values):
         retVal = True
@@ -407,8 +422,11 @@ class RTTViewer:
             self._window['-PAUSE-'].update(new_text)
             # Trigger update to show accumulated messages if unpaused
             self.log_processing_input_queue.put({"pause_string": new_text})
-        elif event == '-PLOT_PATTERN-':
-            self.plot_pattern = values['-PLOT_PATTERN-']
+        elif event == '-PLOT_SERIES-':
+            self.selected_plot_series = values['-PLOT_SERIES-']
+            self.active_series_names = [self.selected_plot_series] if self.selected_plot_series else []
+            self._last_plot_data_lengths = {}
+            self._update_plot()
         elif event == '-ADD_SERIES-':
             name = values['-SERIES_NAME-'].strip()
             pattern = values['-SERIES_PATTERN-'].strip()
@@ -420,8 +438,6 @@ class RTTViewer:
                     self.data_series.append({'name': name, 'pattern': pattern})
                     # Auto-activate the new series
                     self.active_series_names = [s['name'] for s in self.data_series]
-                    self.plot_pattern = pattern
-                    self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
                     self._update_series_ui()
                     self._window['-ACTIVE_SERIES-'].update(set_to_index=list(range(len(self.data_series))))
                     self.selected_series_for_view = name
@@ -467,19 +483,11 @@ class RTTViewer:
                 # Remove stored data for this series
                 if removed_series['name'] in self.series_data:
                     del self.series_data[removed_series['name']]
-                # Update plot pattern from first active series if available
                 if self.active_series_names:
-                    first_active = next((s for s in self.data_series if s['name'] == self.active_series_names[0]), None)
-                    if first_active:
-                        self.plot_pattern = first_active['pattern']
-                        self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
-                    # Re-select active series in the listbox
                     active_indices = [i for i, s in enumerate(self.data_series) if s['name'] in self.active_series_names]
                     self._update_series_ui()
                     self._window['-ACTIVE_SERIES-'].update(set_to_index=active_indices)
                 else:
-                    self.plot_pattern = ""
-                    self._window['-PLOT_PATTERN-'].update('')
                     self._update_series_ui()
                 self._save_config()
             else:
@@ -489,17 +497,8 @@ class RTTViewer:
             if selected_indices:
                 # Get selected series names
                 self.active_series_names = [self.data_series[i]['name'] for i in selected_indices]
-                # Update plot pattern from first active series
-                if self.active_series_names:
-                    first_active = next((s for s in self.data_series if s['name'] == self.active_series_names[0]), None)
-                    if first_active:
-                        self.plot_pattern = first_active['pattern']
-                        self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
-                else:
-                    self.plot_pattern = ""
-                    self._window['-PLOT_PATTERN-'].update('')
 
-                # Update the series values view for the first selected series
+               # Update the series values view for the first selected series
                 if self.active_series_names:
                     self.selected_series_for_view = self.active_series_names[0]
                     self._last_series_values_content = ""
@@ -516,18 +515,18 @@ class RTTViewer:
                 self._window['-SERIES_NAME-'].update(series_name)
                 self._window['-SERIES_PATTERN-'].update(series_pattern)
                 self._update_series_values_view()
-        elif event == '-UPDATE_PLOT-':
-            self._update_plot()
         return retVal
 
     def _update_series_ui(self):
         """Update the series listbox and active series listbox"""
+        series_names = [s['name'] for s in self.data_series]
         self._window['-SERIES_LIST-'].update(
             values=[f"{s['name']}: {s['pattern']}" for s in self.data_series]
         )
         self._window['-ACTIVE_SERIES-'].update(
-            values=[s['name'] for s in self.data_series]
+            values=series_names
         )
+        self._window['-PLOT_SERIES-'].update(values=series_names)
 
     def _update_series_values_view(self):
         """Update the series values view with recorded data"""
@@ -605,7 +604,17 @@ class RTTViewer:
                     if self.selected_series_for_view:
                         self._update_series_values_view()
 
+                    # Update plot if a series is selected and data changed
+                    if self.selected_plot_series and self.selected_plot_series in self.series_data:
+                        current_len = len(self.series_data[self.selected_plot_series])
+                        last_len = self._last_plot_data_lengths.get(self.selected_plot_series, 0)
+                        if current_len != last_len:
+                            self._last_plot_data_lengths[self.selected_plot_series] = current_len
+                            self._update_plot()
+
         finally:
+            if self.plot_fig:
+                plt.close(self.plot_fig)
             self._rtt_handler.disconnect()
             self._window.close()
 
