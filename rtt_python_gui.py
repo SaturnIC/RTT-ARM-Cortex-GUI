@@ -168,6 +168,7 @@ class RTTViewer:
         self.plot_ax = None
         self.plot_canvas_agg = None
         self.plot_lines = {}
+        self.plot_toolbar = None
 
         # Populate series UI with loaded data
         self._update_series_ui()
@@ -333,16 +334,29 @@ class RTTViewer:
         if self.plot_fig is None:
             for item in canvas.winfo_children():
                 item.destroy()
-            self.plot_fig = plt.Figure(figsize=(6, 4))
-            self.plot_ax = self.plot_fig.add_subplot(111)
+            self.plot_fig = plt.Figure(figsize=(6, 4), facecolor='#2B2B2B')
+            self.plot_ax = self.plot_fig.add_subplot(111, facecolor='#2B2B2B')
+            self.plot_ax.tick_params(colors='#D0D0D0')
+            for spine in self.plot_ax.spines.values():
+                spine.set_color('#555555')
             self.plot_canvas_agg = FigureCanvasTkAgg(self.plot_fig, master=canvas)
             self.plot_canvas_agg.get_tk_widget().pack(fill='both', expand=True)
-            NavigationToolbar2Tk(self.plot_canvas_agg, canvas)
+            self.plot_toolbar = NavigationToolbar2Tk(self.plot_canvas_agg, canvas)
+            self.plot_toolbar.configure(bg='#2B2B2B')
+            for widget in self.plot_toolbar.winfo_children():
+                wname = widget.winfo_class()
+                try:
+                    if wname == 'Label':
+                        widget.configure(bg='#2B2B2B', fg='#D0D0D0')
+                    elif wname == 'Frame':
+                        widget.configure(bg='#2B2B2B')
+                except Exception:
+                    pass
 
         self.plot_ax.clear()
         self.plot_lines = {}
         has_data = False
-        colors = ['b', 'r', 'g', 'm', 'c', 'y', 'k']
+        colors = ['#00BFFF', '#FF6B6B', '#7FFF00', '#FF69B4', '#00CED1', '#FFD700', '#FF8C00']
 
         for i, series_name in enumerate(self.active_series_names):
             if series_name in self.series_data and self.series_data[series_name]:
@@ -356,13 +370,13 @@ class RTTViewer:
                 self.plot_lines[series_name] = line
 
         if has_data:
-            self.plot_ax.set_xlabel('Time (s)')
-            self.plot_ax.set_ylabel('Value')
-            self.plot_ax.set_title('Plot Data')
-            self.plot_ax.legend()
-            self.plot_ax.grid(True, alpha=0.3)
+            self.plot_ax.set_xlabel('Time (s)', color='#D0D0D0')
+            self.plot_ax.set_ylabel('Value', color='#D0D0D0')
+            self.plot_ax.set_title('Plot Data', color='#D0D0D0')
+            self.plot_ax.legend(facecolor='#2B2B2B', edgecolor='#555555', labelcolor='#D0D0D0')
+            self.plot_ax.grid(True, alpha=0.3, color='#555555')
         else:
-            self.plot_ax.text(0.5, 0.5, 'No data', transform=self.plot_ax.transAxes, ha='center', va='center')
+            self.plot_ax.text(0.5, 0.5, 'No data', transform=self.plot_ax.transAxes, ha='center', va='center', color='#D0D0D0')
 
         self.plot_canvas_agg.draw()
 
