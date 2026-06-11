@@ -6,7 +6,7 @@ import queue
 import threading
 import argparse
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import libs.log.log_controller as log_controller
 from datetime import datetime
 from libs.jlink.rtt_handler import RTTHandler
@@ -337,6 +337,7 @@ class RTTViewer:
             self.plot_ax = self.plot_fig.add_subplot(111)
             self.plot_canvas_agg = FigureCanvasTkAgg(self.plot_fig, master=canvas)
             self.plot_canvas_agg.get_tk_widget().pack(fill='both', expand=True)
+            NavigationToolbar2Tk(self.plot_canvas_agg, canvas)
 
         self.plot_ax.clear()
         self.plot_lines = {}
