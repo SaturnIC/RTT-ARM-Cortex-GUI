@@ -162,6 +162,7 @@ class RTTViewer:
         self.active_series_names = []
         self.series_data = {}  # Dictionary to store recorded values for each series
         self.selected_series_for_view = ""  # Currently selected series for viewing values
+        self._last_series_values_content = ""
 
         # Initialize plot
         self._update_plot()
@@ -501,6 +502,7 @@ class RTTViewer:
                 # Update the series values view for the first selected series
                 if self.active_series_names:
                     self.selected_series_for_view = self.active_series_names[0]
+                    self._last_series_values_content = ""
                     self._update_series_values_view()
         elif event == '-SERIES_LIST-':
             # When clicking on a series in the defined list, load its data for editing
@@ -510,6 +512,7 @@ class RTTViewer:
                 series_name = series['name']
                 series_pattern = series['pattern']
                 self.selected_series_for_view = series_name
+                self._last_series_values_content = ""
                 self._window['-SERIES_NAME-'].update(series_name)
                 self._window['-SERIES_PATTERN-'].update(series_pattern)
                 self._update_series_values_view()
@@ -529,12 +532,16 @@ class RTTViewer:
     def _update_series_values_view(self):
         """Update the series values view with recorded data"""
         if not self.selected_series_for_view or self.selected_series_for_view not in self.series_data:
-            self._window['-SERIES_VALUES-'].update('')
+            if self._last_series_values_content:
+                self._window['-SERIES_VALUES-'].update('')
+                self._last_series_values_content = ""
             return
 
         data = self.series_data[self.selected_series_for_view]
         if not data:
-            self._window['-SERIES_VALUES-'].update('No recorded values yet.')
+            if self._last_series_values_content != 'No recorded values yet.':
+                self._window['-SERIES_VALUES-'].update('No recorded values yet.')
+                self._last_series_values_content = 'No recorded values yet.'
             return
 
         # Format the data for display
@@ -551,7 +558,11 @@ class RTTViewer:
             relative_time = timestamp - start_time
             lines.append(f"{relative_time:>8.3f}s        {value:>10.3f}")
 
-        self._window['-SERIES_VALUES-'].update('\n'.join(lines))
+        content = '\n'.join(lines)
+        if content != self._last_series_values_content:
+            self._window['-SERIES_VALUES-'].update(content)
+            self._window['-SERIES_VALUES-'].Widget.see('end')
+            self._last_series_values_content = content
 
     def run(self):
         # Start log processing thread
