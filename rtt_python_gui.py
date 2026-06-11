@@ -94,7 +94,7 @@ class RTTViewer:
 
         plot_tab = [
             [sg.Text('Data Series:'), sg.Combo([], key='-PLOT_SERIES-', size=(40, 1), enable_events=True, readonly=True)],
-            [sg.Canvas(key='-CANVAS-', size=(640, 480))]
+            [sg.Canvas(key='-CANVAS-', size=(640, 480), expand_x=True, expand_y=True)]
         ]
 
         self._layout = [
@@ -343,6 +343,7 @@ class RTTViewer:
             self.plot_canvas_agg.get_tk_widget().pack(fill='both', expand=True)
             self.plot_toolbar = NavigationToolbar2Tk(self.plot_canvas_agg, canvas)
             self.plot_toolbar.configure(bg='#2B2B2B')
+            canvas.bind('<Configure>', self._on_canvas_resize)
             for widget in self.plot_toolbar.winfo_children():
                 wname = widget.winfo_class()
                 try:
@@ -379,6 +380,13 @@ class RTTViewer:
             self.plot_ax.text(0.5, 0.5, 'No data', transform=self.plot_ax.transAxes, ha='center', va='center', color='#D0D0D0')
 
         self.plot_canvas_agg.draw()
+
+    def _on_canvas_resize(self, event):
+        if self.plot_fig and event.width > 1 and event.height > 1:
+            dpi = self.plot_fig.get_dpi()
+            self.plot_fig.set_size_inches(event.width / dpi, event.height / dpi)
+            self.plot_fig.tight_layout()
+            self.plot_canvas_agg.draw()
 
     def handle_events(self, event, values):
         retVal = True
