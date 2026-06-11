@@ -93,7 +93,9 @@ class RTTViewer:
         ]
 
         plot_tab = [
-            [sg.Text('Data Series:'), sg.Combo([], key='-PLOT_SERIES-', size=(40, 1), enable_events=True, readonly=True)],
+            [sg.Text('Series 1:'), sg.Combo([], key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True),
+             sg.Text('Series 2:'), sg.Combo([], key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True),
+             sg.Text('Series 3:'), sg.Combo([], key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True)],
             [sg.Canvas(key='-CANVAS-', size=(640, 480), expand_x=True, expand_y=True)]
         ]
 
@@ -158,7 +160,7 @@ class RTTViewer:
         self.log_handler = log_controller.create_log_processor_and_displayer(self.log_view)
 
         # Plot data
-        self.selected_plot_series = ""
+        self.selected_plot_series = ["", "", ""]
         self.active_series_names = [s['name'] for s in self.data_series]
         self.series_data = {}  # Dictionary to store recorded values for each series
         self.selected_series_for_view = ""  # Currently selected series for viewing values
@@ -359,7 +361,8 @@ class RTTViewer:
         has_data = False
         colors = ['#00BFFF', '#FF6B6B', '#7FFF00', '#FF69B4', '#00CED1', '#FFD700', '#FF8C00']
 
-        for i, series_name in enumerate(self.active_series_names):
+        plot_series = [s for s in self.selected_plot_series if s]
+        for i, series_name in enumerate(plot_series):
             if series_name in self.series_data and self.series_data[series_name]:
                 has_data = True
                 data = self.series_data[series_name]
@@ -445,9 +448,10 @@ class RTTViewer:
             self._window['-PAUSE-'].update(new_text)
             # Trigger update to show accumulated messages if unpaused
             self.log_processing_input_queue.put({"pause_string": new_text})
-        elif event == '-PLOT_SERIES-':
-            self.selected_plot_series = values['-PLOT_SERIES-']
-            self.active_series_names = [self.selected_plot_series] if self.selected_plot_series else []
+        elif event in ("-PLOT_SERIES_1-", "-PLOT_SERIES_2-", "-PLOT_SERIES_3-"):
+            idx = int(event.split('_')[-1].rstrip('-')) - 1
+            self.selected_plot_series[idx] = values[event]
+            self.active_series_names = [s for s in self.selected_plot_series if s]
             self._last_plot_data_lengths = {}
             self._update_plot()
         elif event == '-ADD_SERIES-':
@@ -549,7 +553,9 @@ class RTTViewer:
         self._window['-ACTIVE_SERIES-'].update(
             values=series_names
         )
-        self._window['-PLOT_SERIES-'].update(values=series_names)
+        self._window["-PLOT_SERIES_1-"].update(values=series_names)
+        self._window['-PLOT_SERIES_2-'].update(values=series_names)
+        self._window['-PLOT_SERIES_3-'].update(values=series_names)
 
     def _update_series_values_view(self):
         """Update the series values view with recorded data"""
@@ -627,13 +633,17 @@ class RTTViewer:
                     if self.selected_series_for_view:
                         self._update_series_values_view()
 
-                    # Update plot if a series is selected and data changed
-                    if self.selected_plot_series and self.selected_plot_series in self.series_data:
-                        current_len = len(self.series_data[self.selected_plot_series])
-                        last_len = self._last_plot_data_lengths.get(self.selected_plot_series, 0)
-                        if current_len != last_len:
-                            self._last_plot_data_lengths[self.selected_plot_series] = current_len
-                            self._update_plot()
+                       # Update plot if a series is selected and data changed
+                    plot_series = [s for s in self.selected_plot_series if s]
+                    if plot_series:
+                        for series_name in plot_series:
+                            if series_name in self.series_data:
+                                current_len = len(self.series_data[series_name])
+                                last_len = self._last_plot_data_lengths.get(series_name, 0)
+                                if current_len != last_len:
+                                    self._last_plot_data_lengths[series_name] = current_len
+                                    self._update_plot()
+                                    break
 
         finally:
             if self.plot_fig:
