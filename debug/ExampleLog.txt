@@ -1,5 +1,8 @@
 connecting to STM32F427II via SWD...
 connected, starting RTT...
+motor adc 1, value: 3.4 A
+motor adc 2, value: 1.2 A
+sensor temp, value: 42.5 C
 ADC channel: 14, raw value: 2514, converted value: 5004 
 ADC channel: 9, raw value: 1236, converted value: 11953 
 ADC channel: 14, raw value: 2514, converted value: 5004 

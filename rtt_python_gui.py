@@ -74,7 +74,7 @@ class RTTViewer:
             [sg.Text('Data Series Configuration', font=('Arial', 12, 'bold'))],
             [sg.HorizontalSeparator()],
             [sg.Text('Series Name:'), sg.Input(key='-SERIES_NAME-', size=(25, 1))],
-            [sg.Text('Glob Pattern (use <N> for number):'), sg.Input(key='-SERIES_PATTERN-', size=(40, 1))],
+            [sg.Text('Pattern (<N>=capture number, *=wildcard):'), sg.Input(key='-SERIES_PATTERN-', size=(40, 1))],
             [sg.Button('Add Series', key='-ADD_SERIES-'), sg.Button('Remove Series', key='-REMOVE_SERIES-')],
             [sg.HorizontalSeparator()],
             [sg.Column([
@@ -158,7 +158,6 @@ class RTTViewer:
         self.log_handler = log_controller.create_log_processor_and_displayer(self.log_view)
 
         # Plot data
-        self.plot_data = []
         self.plot_pattern = ""
         self.active_series_names = []
         self.series_data = {}  # Dictionary to store recorded values for each series
@@ -190,7 +189,7 @@ class RTTViewer:
                 pause_string = log_input["pause_string"] if "pause_string" in log_input else None
 
                 # Extract plot data
-                if line and self.plot_pattern:
+                if line and self.active_series_names:
                     self._extract_plot_data(line)
 
                 # Invoke processing
@@ -281,43 +280,65 @@ class RTTViewer:
 
     def _extract_plot_data(self, line):
         # Extract data for all active series
+        line = line.rstrip('\n\r')
         for series_name in self.active_series_names:
             series = next((s for s in self.data_series if s['name'] == series_name), None)
             if not series:
                 continue
 
             pattern = series['pattern']
-            glob_pattern = pattern.replace('N', '*')
+            glob_pattern = pattern.replace('<N>', '*')
             if fnmatch.fnmatch(line, glob_pattern):
-                # Create regex by replacing N with number pattern
-                regex_pattern = re.escape(pattern).replace(r'\N', r'(\d+(?:\.\d+)?)')
+                # Build regex: <N> = capture group, * = non-capturing wildcard
+                regex_parts = []
+                j = 0
+                while j < len(pattern):
+                    if pattern[j:j+3] == '<N>':
+                        regex_parts.append(r'(\d+(?:\.\d+)?)')
+                        j += 3
+                    elif pattern[j] == '*':
+                        regex_parts.append('.*?')
+                        j += 1
+                    else:
+                        regex_parts.append(re.escape(pattern[j]))
+                        j += 1
+                regex_pattern = ''.join(regex_parts)
                 match = re.search(regex_pattern, line)
                 if match:
-                    try:
-                        value = float(match.group(1))
-                        timestamp = time.time()
+                    timestamp = time.time()
+                    if series_name not in self.series_data:
+                        self.series_data[series_name] = []
 
-                        # Store in series-specific data
-                        if series_name not in self.series_data:
-                            self.series_data[series_name] = []
-                        self.series_data[series_name].append((timestamp, value))
-
-                        # Also add to plot data (for backward compatibility)
-                        self.plot_data.append((timestamp, value))
-                    except ValueError:
-                        pass  # Ignore if not a number
+                    for i in range(1, match.lastindex + 1):
+                        try:
+                            value = float(match.group(i))
+                            self.series_data[series_name].append((timestamp, value, i))
+                        except (ValueError, IndexError):
+                            pass
 
     def _update_plot(self):
         canvas_elem = self._window['-CANVAS-']
         canvas = canvas_elem.TKCanvas
         fig = plt.Figure(figsize=(6, 4))
         ax = fig.add_subplot(111)
-        if self.plot_data:
-            times, values = zip(*self.plot_data)
-            ax.plot(times, values)
+        has_data = False
+        colors = ['b', 'r', 'g', 'm', 'c', 'y', 'k']
+        for i, series_name in enumerate(self.active_series_names):
+            if series_name in self.series_data and self.series_data[series_name]:
+                has_data = True
+                data = self.series_data[series_name]
+                start_time = data[0][0]
+                # data entries: (timestamp, value, group_index)
+                values = [d[1] for d in data]
+                times = [d[0] - start_time for d in data]
+                color = colors[i % len(colors)]
+                ax.plot(times, values, label=series_name, color=color, linewidth=1)
+        if has_data:
             ax.set_xlabel('Time (s)')
             ax.set_ylabel('Value')
             ax.set_title('Plot Data')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
         else:
             ax.text(0.5, 0.5, 'No data', transform=ax.transAxes, ha='center', va='center')
         # Clear previous figure
@@ -326,6 +347,7 @@ class RTTViewer:
         canvas_agg = FigureCanvasTkAgg(fig, master=canvas)
         canvas_agg.draw()
         canvas_agg.get_tk_widget().pack(fill='both', expand=True)
+        plt.close(fig)
 
     def handle_events(self, event, values):
         retVal = True
@@ -358,7 +380,6 @@ class RTTViewer:
         elif event == '-CLEAR-':
             self.log_handler['clear']()
             self.log_view.clear_log()
-            self.plot_data = []
             self.series_data = {}  # Clear all series data
             self._update_series_values_view()
         elif event == '-SAVE-':
@@ -396,7 +417,13 @@ class RTTViewer:
                     sg.popup_error('A series with this name already exists!')
                 else:
                     self.data_series.append({'name': name, 'pattern': pattern})
+                    # Auto-activate the new series
+                    self.active_series_names = [s['name'] for s in self.data_series]
+                    self.plot_pattern = pattern
+                    self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
                     self._update_series_ui()
+                    self._window['-ACTIVE_SERIES-'].update(set_to_index=list(range(len(self.data_series))))
+                    self.selected_series_for_view = name
                     self._save_config()
                     # Clear input fields
                     self._window['-SERIES_NAME-'].update('')
@@ -420,11 +447,14 @@ class RTTViewer:
                     if first_active:
                         self.plot_pattern = first_active['pattern']
                         self._window['-PLOT_PATTERN-'].update(self.plot_pattern)
+                    # Re-select active series in the listbox
+                    active_indices = [i for i, s in enumerate(self.data_series) if s['name'] in self.active_series_names]
+                    self._update_series_ui()
+                    self._window['-ACTIVE_SERIES-'].update(set_to_index=active_indices)
                 else:
                     self.plot_pattern = ""
-                    self.plot_data = []
                     self._window['-PLOT_PATTERN-'].update('')
-                self._update_series_ui()
+                    self._update_series_ui()
                 self._save_config()
             else:
                 sg.popup_error('Please select a series to remove!')
@@ -486,7 +516,9 @@ class RTTViewer:
         lines.append("-" * 50)
 
         start_time = data[0][0] if data else 0
-        for timestamp, value in data:
+        for entry in data:
+            timestamp = entry[0]
+            value = entry[1]
             relative_time = timestamp - start_time
             lines.append(f"{relative_time:>8.3f}s        {value:>10.3f}")
 
