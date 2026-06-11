@@ -75,7 +75,7 @@ class RTTViewer:
             [sg.HorizontalSeparator()],
             [sg.Text('Series Name:'), sg.Input(key='-SERIES_NAME-', size=(25, 1))],
             [sg.Text('Pattern (<N>=capture number, *=wildcard):'), sg.Input(key='-SERIES_PATTERN-', size=(40, 1))],
-            [sg.Button('Add Series', key='-ADD_SERIES-'), sg.Button('Remove Series', key='-REMOVE_SERIES-')],
+            [sg.Button('Add Series', key='-ADD_SERIES-'), sg.Button('Update Series', key='-UPDATE_SERIES-'), sg.Button('Remove Series', key='-REMOVE_SERIES-')],
             [sg.HorizontalSeparator()],
             [sg.Column([
                 [sg.Text('Defined Series:', font=('Arial', 10, 'bold'))],
@@ -430,6 +430,31 @@ class RTTViewer:
                     self._window['-SERIES_PATTERN-'].update('')
             else:
                 sg.popup_error('Please enter both a name and a pattern!')
+        elif event == '-UPDATE_SERIES-':
+            name = values['-SERIES_NAME-'].strip()
+            pattern = values['-SERIES_PATTERN-'].strip()
+            if name and pattern and self.selected_series_for_view:
+                # Find the series and update it
+                series = next((s for s in self.data_series if s['name'] == self.selected_series_for_view), None)
+                if series:
+                    old_name = series['name']
+                    series['name'] = name
+                    series['pattern'] = pattern
+                    # Update active series names if the series was active
+                    if old_name in self.active_series_names:
+                        self.active_series_names[self.active_series_names.index(old_name)] = name
+                    # Update stored data key
+                    if old_name in self.series_data:
+                        self.series_data[name] = self.series_data.pop(old_name)
+                    self._update_series_ui()
+                    self._save_config()
+                    self._window['-SERIES_NAME-'].update('')
+                    self._window['-SERIES_PATTERN-'].update('')
+                    self.selected_series_for_view = ''
+                else:
+                    sg.popup_error('Series not found!')
+            else:
+                sg.popup_error('Select a series from the list first, then enter updated name and pattern!')
         elif event == '-REMOVE_SERIES-':
             selected_indices = self._window['-SERIES_LIST-'].get_indexes()
             if selected_indices:
@@ -478,11 +503,15 @@ class RTTViewer:
                     self.selected_series_for_view = self.active_series_names[0]
                     self._update_series_values_view()
         elif event == '-SERIES_LIST-':
-            # When clicking on a series in the defined list, show its values
+            # When clicking on a series in the defined list, load its data for editing
             selected_indices = self._window['-SERIES_LIST-'].get_indexes()
             if selected_indices:
-                series_name = self.data_series[selected_indices[0]]['name']
+                series = self.data_series[selected_indices[0]]
+                series_name = series['name']
+                series_pattern = series['pattern']
                 self.selected_series_for_view = series_name
+                self._window['-SERIES_NAME-'].update(series_name)
+                self._window['-SERIES_PATTERN-'].update(series_pattern)
                 self._update_series_values_view()
         elif event == '-UPDATE_PLOT-':
             self._update_plot()
