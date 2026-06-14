@@ -91,12 +91,12 @@ class RTTViewer:
 
         log_tab = [
             [sg.Multiline(size=(80, 20), key='-LOG-', expand_x=True, expand_y=True, font=FONT_MONO)],
-            [sg.Text('Filter:', font=FONT, text_color=LABEL), sg.Input(key='-FILTER-', size=(18, 1), enable_events=True, font=FONT),
-             sg.Text('Highlight:', font=FONT, text_color=LABEL), sg.Input(key='-HIGHLIGHT-', size=(18, 1), enable_events=True, font=FONT),
+            [sg.Text('Filter:', font=FONT, text_color=SERIES), sg.Input(key='-FILTER-', size=(18, 1), enable_events=True, font=FONT),
+             sg.Text('Highlight:', font=FONT, text_color=SERIES), sg.Input(key='-HIGHLIGHT-', size=(18, 1), enable_events=True, font=FONT),
              sg.Push(),
-             sg.Button('Pause', key='-PAUSE-', font=FONT, button_color=(BTN_TEXT, SURFACE)),
-             sg.Button('Clear', key='-CLEAR-', font=FONT, button_color=(BTN_TEXT, SURFACE)),
-             sg.Button('Save', key='-SAVE-', font=FONT, button_color=(BTN_TEXT, SURFACE))]
+             sg.Button('Pause', key='-PAUSE-', font=FONT, button_color=(SERIES, SURFACE)),
+             sg.Button('Clear', key='-CLEAR-', font=FONT, button_color=(SERIES, SURFACE)),
+             sg.Button('Save', key='-SAVE-', font=FONT, button_color=(SERIES, SURFACE))]
         ]
 
         data_series_tab = [[sg.Column([
@@ -159,7 +159,7 @@ class RTTViewer:
                  sg.Tab('Data Series', data_series_tab, key='-DATA_SERIES_TAB-'),
                  sg.Tab('Plot', plot_tab, key='-PLOT_TAB-')]
             ], expand_x=True, expand_y=True, font=FONT_BOLD,
-               title_color='#788898', selected_title_color='#5BC0BE',
+               title_color='#788898', selected_title_color='#4A90D9',
                selected_background_color=SURFACE)]
         ]
 
