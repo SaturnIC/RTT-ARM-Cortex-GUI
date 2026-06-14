@@ -137,3 +137,10 @@ If charts appear blank or throw errors in the frozen binary, ensure `collect_dat
 Matplotlib, numpy, and PIL are large libraries (~30-40MB combined). The spec file excludes unused backends and modules. To reduce further:
 - Install UPX (`sudo apt install upx` on Linux, `brew install upx` on macOS) for binary compression
 - Add more modules to the `excludes` list in the spec file
+
+**numpy ELF alignment error on Linux**
+If you get `libscipy_openblas64_...so: ELF load command address/offset not page-aligned` on Linux, pin numpy to 1.x:
+```bash
+pip install "numpy<2"
+pyinstaller rtt_python_gui.spec
+```

@@ -2,4 +2,4 @@ FreeSimpleGUI==5.0.0
 pylink-square
 platformdirs
 matplotlib
-numpy<2
+numpy<2; sys_platform == "linux"
