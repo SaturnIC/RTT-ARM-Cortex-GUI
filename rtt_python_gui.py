@@ -99,7 +99,7 @@ class RTTViewer:
              sg.Button('Save', key='-SAVE-', font=FONT, button_color=(BTN_TEXT, SURFACE))]
         ]
 
-        data_series_tab = [
+        data_series_tab = [[sg.Column([
             [sg.Text('Series Configuration', font=FONT_BOLD, text_color=SERIES)],
             [sg.HorizontalSeparator()],
             [sg.Text('Name', font=FONT, text_color=LABEL, size=(8, 1)),
@@ -125,15 +125,15 @@ class RTTViewer:
             [sg.HorizontalSeparator()],
             [sg.Text('Recorded Values', font=FONT_BOLD, text_color=SERIES)],
             [sg.Multiline(size=(70, 10), key='-SERIES_VALUES-', expand_x=True, font=FONT_MONO_SM, disabled=True)]
-        ]
+        ], expand_x=True, expand_y=True, pad=(0, (4, 0)))]]
 
-        plot_tab = [
+        plot_tab = [[sg.Column([
             [sg.Text('Series 1:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
              sg.Text('Series 2:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
              sg.Text('Series 3:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
              sg.Push(), sg.Button('Clear Plot', key='-CLEAR_PLOT-', font=FONT, button_color=(BTN_TEXT, SURFACE))],
             [sg.Canvas(key='-CANVAS-', size=(800, 600), expand_x=True, expand_y=True)]
-        ]
+        ], expand_x=True, expand_y=True, pad=(0, (4, 0)))]]
 
         self._layout = [
             [sg.Text('MCU:', font=FONT, text_color=SETTINGS),
@@ -154,7 +154,7 @@ class RTTViewer:
                  sg.Tab('Plot', plot_tab, key='-PLOT_TAB-')]
             ], expand_x=True, expand_y=True, font=FONT_BOLD,
                title_color='#788898', selected_title_color='#5BC0BE',
-               selected_background_color=SURFACE, pad=(0, (0, 8)))]
+               selected_background_color=SURFACE)]
         ]
 
         self._window = sg.Window('ARM Cortex RTT GUI', self._layout, finalize=True, resizable=True)
