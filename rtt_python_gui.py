@@ -117,6 +117,11 @@ class RTTViewer:
                             select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True)]
             ], vertical_alignment='top'),
              sg.Column([
+                [sg.Text(' ', font=FONT)],
+                [sg.Button('Activate \u25B6', key='-ACTIVATE_SERIES-', font=FONT, button_color=(SUCCESS, SURFACE), size=(10, 1))],
+                [sg.Button('\u25C4 Deactivate', key='-DEACTIVATE_SERIES-', font=FONT, button_color=(DANGER, SURFACE), size=(10, 1))],
+            ], vertical_alignment='center', element_justification='center'),
+             sg.Column([
                 [sg.Text('Active', font=FONT_BOLD, text_color=SERIES)],
                 [sg.Listbox(values=[s['name'] for s in self.data_series],
                             key='-ACTIVE_SERIES-', size=(25, 8), font=FONT_MONO_SM,
@@ -650,14 +655,24 @@ class RTTViewer:
         elif event == '-ACTIVE_SERIES-':
             selected_indices = self._window['-ACTIVE_SERIES-'].get_indexes()
             if selected_indices:
-                # Get selected series names
-                self.active_series_names = [self.data_series[i]['name'] for i in selected_indices]
-
-               # Update the series values view for the first selected series
-                if self.active_series_names:
-                    self.selected_series_for_view = self.active_series_names[0]
-                    self._last_series_values_content = ""
-                    self._update_series_values_view()
+                # Just update the values view, don't modify active_series_names
+                self.selected_series_for_view = self.active_series_names[selected_indices[0]]
+                self._last_series_values_content = ""
+                self._update_series_values_view()
+        elif event == '-ACTIVATE_SERIES-':
+            selected_indices = self._window['-SERIES_LIST-'].get_indexes()
+            if selected_indices:
+                name = self.data_series[selected_indices[0]]['name']
+                if name not in self.active_series_names:
+                    self.active_series_names.append(name)
+                    self._update_series_ui()
+        elif event == '-DEACTIVATE_SERIES-':
+            selected_indices = self._window['-ACTIVE_SERIES-'].get_indexes()
+            if selected_indices:
+                for idx in sorted(selected_indices, reverse=True):
+                    if idx < len(self.active_series_names):
+                        self.active_series_names.pop(idx)
+                self._update_series_ui()
         elif event == '-SERIES_LIST-':
             # When clicking on a series in the defined list, load its data for editing
             selected_indices = self._window['-SERIES_LIST-'].get_indexes()
@@ -679,7 +694,7 @@ class RTTViewer:
             values=[f"{s['name']}: {s['pattern']}" for s in self.data_series]
         )
         self._window['-ACTIVE_SERIES-'].update(
-            values=series_names
+            values=self.active_series_names
         )
         combo_values = ['—'] + series_names
         self._window["-PLOT_SERIES_1-"].update(values=combo_values)
