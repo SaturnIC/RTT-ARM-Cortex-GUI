@@ -5,7 +5,13 @@ import time
 import queue
 import threading
 import argparse
+import matplotlib
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['font.sans-serif'] = ['Inter', 'Segoe UI', 'Helvetica Neue', 'DejaVu Sans']
+matplotlib.rcParams['mathtext.default'] = 'regular'
+
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import libs.log.log_controller as log_controller
 from datetime import datetime
@@ -93,10 +99,11 @@ class RTTViewer:
         ]
 
         plot_tab = [
-            [sg.Text('Series 1:'), sg.Combo([], key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True),
-             sg.Text('Series 2:'), sg.Combo([], key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True),
-             sg.Text('Series 3:'), sg.Combo([], key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True)],
-            [sg.Canvas(key='-CANVAS-', size=(640, 480), expand_x=True, expand_y=True)]
+            [sg.Text('Series 1:'), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True),
+             sg.Text('Series 2:'), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True),
+             sg.Text('Series 3:'), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True),
+             sg.Push(), sg.Button('Clear Plot', key='-CLEAR_PLOT-')],
+            [sg.Canvas(key='-CANVAS-', size=(800, 600), expand_x=True, expand_y=True)]
         ]
 
         self._layout = [
@@ -328,67 +335,156 @@ class RTTViewer:
                         except (ValueError, IndexError):
                             pass
 
+    # Modern dark dashboard color palette
+    COLORS = ['#6366F1', '#F43F5E', '#10B981', '#F59E0B', '#06B6D4', '#A855F7', '#F97316']
+    BG_COLOR = '#16161E'
+    SURFACE_COLOR = '#1E1E2A'
+    TEXT_COLOR = '#A0A0B8'
+    TEXT_BOLD = '#E0E0F0'
+    GRID_COLOR = '#2A2A3C'
+    SPINE_COLOR = '#2A2A3C'
+
+    def _init_plot(self, canvas):
+        for item in canvas.winfo_children():
+            item.destroy()
+
+        fig = plt.Figure(figsize=(6, 4), facecolor=self.BG_COLOR, dpi=100)
+        ax = fig.add_subplot(111, facecolor=self.SURFACE_COLOR)
+
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        for spine in ['bottom', 'left']:
+            ax.spines[spine].set_color(self.SPINE_COLOR)
+            ax.spines[spine].set_linewidth(0.8)
+
+        ax.tick_params(axis='both', colors=self.TEXT_COLOR, labelsize=9, length=4, width=0.8)
+        ax.grid(True, color=self.GRID_COLOR, linewidth=0.5, alpha=0.6, linestyle='-')
+        ax.set_axisbelow(True)
+
+        canvas_agg = FigureCanvasTkAgg(fig, master=canvas)
+        canvas_agg.get_tk_widget().pack(fill='both', expand=True)
+
+        toolbar = NavigationToolbar2Tk(canvas_agg, canvas)
+        toolbar.configure(bg=self.BG_COLOR)
+        canvas.bind('<Configure>', self._on_canvas_resize)
+
+        for widget in toolbar.winfo_children():
+            wname = widget.winfo_class()
+            try:
+                if wname == 'Label':
+                    widget.configure(bg=self.BG_COLOR, fg=self.TEXT_COLOR)
+                elif wname == 'Frame':
+                    widget.configure(bg=self.BG_COLOR)
+            except Exception:
+                pass
+
+        return fig, ax, canvas_agg, toolbar
+
+    def _smooth_data(self, times, values, n_points=500):
+        if len(times) < 4:
+            return np.array(times), np.array(values)
+        t = np.array(times)
+        v = np.array(values)
+        t_smooth = np.linspace(t[0], t[-1], n_points)
+        v_smooth = np.interp(t_smooth, t, v)
+        return t_smooth, v_smooth
+
     def _update_plot(self):
         canvas_elem = self._window['-CANVAS-']
         canvas = canvas_elem.TKCanvas
 
-        # Initialize figure and axes on first call
         if self.plot_fig is None:
-            for item in canvas.winfo_children():
-                item.destroy()
-            self.plot_fig = plt.Figure(figsize=(6, 4), facecolor='#2B2B2B')
-            self.plot_ax = self.plot_fig.add_subplot(111, facecolor='#2B2B2B')
-            self.plot_ax.tick_params(colors='#D0D0D0')
-            for spine in self.plot_ax.spines.values():
-                spine.set_color('#555555')
-            self.plot_canvas_agg = FigureCanvasTkAgg(self.plot_fig, master=canvas)
-            self.plot_canvas_agg.get_tk_widget().pack(fill='both', expand=True)
-            self.plot_toolbar = NavigationToolbar2Tk(self.plot_canvas_agg, canvas)
-            self.plot_toolbar.configure(bg='#2B2B2B')
-            canvas.bind('<Configure>', self._on_canvas_resize)
-            for widget in self.plot_toolbar.winfo_children():
-                wname = widget.winfo_class()
-                try:
-                    if wname == 'Label':
-                        widget.configure(bg='#2B2B2B', fg='#D0D0D0')
-                    elif wname == 'Frame':
-                        widget.configure(bg='#2B2B2B')
-                except Exception:
-                    pass
+            self.plot_fig, self.plot_ax, self.plot_canvas_agg, self.plot_toolbar = self._init_plot(canvas)
 
         self.plot_ax.clear()
         self.plot_lines = {}
         has_data = False
-        colors = ['#00BFFF', '#FF6B6B', '#7FFF00', '#FF69B4', '#00CED1', '#FFD700', '#FF8C00']
+
+        self.plot_ax.spines['top'].set_visible(False)
+        self.plot_ax.spines['right'].set_visible(False)
+        for spine in ['bottom', 'left']:
+            self.plot_ax.spines[spine].set_color(self.SPINE_COLOR)
+            self.plot_ax.spines[spine].set_linewidth(0.8)
+        self.plot_ax.tick_params(axis='both', colors=self.TEXT_COLOR, labelsize=9, length=4, width=0.8)
+        self.plot_ax.grid(True, color=self.GRID_COLOR, linewidth=0.5, alpha=0.6, linestyle='-')
+        self.plot_ax.set_axisbelow(True)
 
         plot_series = [s for s in self.selected_plot_series if s]
+        all_values = []
+        global_start_time = None
+        for series_name in plot_series:
+            if series_name in self.series_data and self.series_data[series_name]:
+                t0 = self.series_data[series_name][0][0]
+                if global_start_time is None or t0 < global_start_time:
+                    global_start_time = t0
+
         for i, series_name in enumerate(plot_series):
             if series_name in self.series_data and self.series_data[series_name]:
                 has_data = True
                 data = self.series_data[series_name]
-                start_time = data[0][0]
                 values = [d[1] for d in data]
-                times = [d[0] - start_time for d in data]
-                color = colors[i % len(colors)]
-                line, = self.plot_ax.plot(times, values, label=series_name, color=color, linewidth=1)
+                times = [d[0] - global_start_time for d in data]
+                all_values.extend(values)
+                color = self.COLORS[i % len(self.COLORS)]
+
+                t_smooth, v_smooth = self._smooth_data(times, values)
+
+                self.plot_ax.plot(
+                    t_smooth, v_smooth, color=color, linewidth=4,
+                    alpha=0.25, solid_capstyle='round'
+                )
+
+                line, = self.plot_ax.plot(
+                    t_smooth, v_smooth, label=series_name, color=color,
+                    linewidth=2, solid_capstyle='round', antialiased=True
+                )
                 self.plot_lines[series_name] = line
 
-        if has_data:
-            self.plot_ax.set_xlabel('Time (s)', color='#D0D0D0')
-            self.plot_ax.set_ylabel('Value', color='#D0D0D0')
-            self.plot_ax.set_title('Plot Data', color='#D0D0D0')
-            self.plot_ax.legend(facecolor='#2B2B2B', edgecolor='#555555', labelcolor='#D0D0D0')
-            self.plot_ax.grid(True, alpha=0.3, color='#555555')
-        else:
-            self.plot_ax.text(0.5, 0.5, 'No data', transform=self.plot_ax.transAxes, ha='center', va='center', color='#D0D0D0')
+        if has_data and all_values:
+            y_min = min(all_values)
+            y_max = max(all_values)
+            y_range = y_max - y_min
+            if y_range < 1e-10:
+                y_range = max(abs(y_max) * 0.1, 1.0)
+            y_margin = y_range * 0.05
+            self.plot_ax.set_ylim(y_min - y_margin, y_max + y_margin)
 
+            for i, series_name in enumerate(plot_series):
+                if series_name in self.series_data and self.series_data[series_name]:
+                    data = self.series_data[series_name]
+                    values = [d[1] for d in data]
+                    times = [d[0] - global_start_time for d in data]
+                    color = self.COLORS[i % len(self.COLORS)]
+                    t_smooth, v_smooth = self._smooth_data(times, values)
+                    self.plot_ax.fill_between(
+                        t_smooth, v_smooth, y_min - y_margin,
+                        alpha=0.08, color=color, linewidth=0
+                    )
+
+        if has_data:
+            self.plot_ax.set_xlabel('Time  (s)', color=self.TEXT_COLOR, fontsize=10, labelpad=8)
+            self.plot_ax.set_ylabel('Value', color=self.TEXT_COLOR, fontsize=10, labelpad=8)
+            legend = self.plot_ax.legend(
+                facecolor=self.SURFACE_COLOR, edgecolor=self.SPINE_COLOR,
+                labelcolor=self.TEXT_COLOR, fontsize=9, fancybox=True,
+                framealpha=0.85, borderpad=0.8, handlelength=1.5
+            )
+            legend.get_frame().set_linewidth(0.5)
+        else:
+            self.plot_ax.text(
+                0.5, 0.5, 'No data yet', transform=self.plot_ax.transAxes,
+                ha='center', va='center', color=self.TEXT_COLOR, fontsize=13,
+                fontstyle='italic', alpha=0.6
+            )
+
+        self.plot_fig.tight_layout(pad=1.5)
         self.plot_canvas_agg.draw()
 
     def _on_canvas_resize(self, event):
         if self.plot_fig and event.width > 1 and event.height > 1:
             dpi = self.plot_fig.get_dpi()
             self.plot_fig.set_size_inches(event.width / dpi, event.height / dpi)
-            self.plot_fig.tight_layout()
+            self.plot_fig.tight_layout(pad=1.5)
             self.plot_canvas_agg.draw()
 
     def handle_events(self, event, values):
@@ -424,6 +520,10 @@ class RTTViewer:
             self.log_view.clear_log()
             self.series_data = {}  # Clear all series data
             self._update_series_values_view()
+        elif event == '-CLEAR_PLOT-':
+            self.series_data = {}
+            self._last_plot_data_lengths = {}
+            self._update_plot()
         elif event == '-SAVE-':
             # Open a file save dialog
             save_path = sg.popup_get_file('Save log', save_as=True, no_window=False, default_extension='txt')
@@ -450,7 +550,8 @@ class RTTViewer:
             self.log_processing_input_queue.put({"pause_string": new_text})
         elif event in ("-PLOT_SERIES_1-", "-PLOT_SERIES_2-", "-PLOT_SERIES_3-"):
             idx = int(event.split('_')[-1].rstrip('-')) - 1
-            self.selected_plot_series[idx] = values[event]
+            selected = values[event]
+            self.selected_plot_series[idx] = '' if selected == '—' else selected
             self.active_series_names = [s for s in self.selected_plot_series if s]
             self._last_plot_data_lengths = {}
             self._update_plot()
@@ -553,9 +654,10 @@ class RTTViewer:
         self._window['-ACTIVE_SERIES-'].update(
             values=series_names
         )
-        self._window["-PLOT_SERIES_1-"].update(values=series_names)
-        self._window['-PLOT_SERIES_2-'].update(values=series_names)
-        self._window['-PLOT_SERIES_3-'].update(values=series_names)
+        combo_values = ['—'] + series_names
+        self._window["-PLOT_SERIES_1-"].update(values=combo_values)
+        self._window['-PLOT_SERIES_2-'].update(values=combo_values)
+        self._window['-PLOT_SERIES_3-'].update(values=combo_values)
 
     def _update_series_values_view(self):
         """Update the series values view with recorded data"""
