@@ -160,5 +160,8 @@ Select up to 3 data series from the dropdowns to plot them in real-time. All ser
 ## Configuration
 The application stores configuration (MCU history, interface selection, data series definitions) in a JSON file at the platform-appropriate user data directory. This is saved automatically on exit or when settings change.
 
+## Development
+For development setup, testing, and building executables, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
 ## License
 This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for more details.

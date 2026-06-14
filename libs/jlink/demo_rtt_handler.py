@@ -1,6 +1,8 @@
 import threading
 import queue
 import time
+import sys
+import os
 from libs.jlink.rtt_handler_interface import RTTHandlerInterface
 
 class DemoRTTHandler(RTTHandlerInterface):
@@ -52,10 +54,16 @@ class DemoRTTHandler(RTTHandlerInterface):
     def _demo_loop(self):
         demo_messages = []
         try:
-            with open('debug/ExampleLog.txt', 'r') as f:
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+                base_path = os.path.join(base_path, '..', '..')
+            log_path = os.path.join(base_path, 'debug', 'demo_log.txt')
+            with open(log_path, 'r') as f:
                 demo_messages = [line.rstrip('\n') for line in f]
         except FileNotFoundError:
-            demo_messages = ["[ERROR] ExampleLogs.txt not found. Using default messages."]
+            demo_messages = ["[ERROR] demo_log.txt not found. Using default messages."]
 
         while not self._stop_demo.is_set():
             for msg in demo_messages:
