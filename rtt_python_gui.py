@@ -379,6 +379,8 @@ class RTTViewer:
     SPINE_COLOR = '#404040'
 
     def _init_plot(self, canvas):
+        import tkinter as tk
+
         for item in canvas.winfo_children():
             item.destroy()
 
@@ -399,18 +401,36 @@ class RTTViewer:
         canvas_agg.get_tk_widget().pack(fill='both', expand=True)
 
         toolbar = NavigationToolbar2Tk(canvas_agg, canvas)
-        toolbar.configure(bg=self.BG_COLOR)
-        canvas.bind('<Configure>', self._on_canvas_resize)
+        toolbar.pack_forget()
 
-        for widget in toolbar.winfo_children():
-            wname = widget.winfo_class()
-            try:
-                if wname == 'Label':
-                    widget.configure(bg=self.BG_COLOR, fg=self.TEXT_COLOR)
-                elif wname == 'Frame':
-                    widget.configure(bg=self.BG_COLOR)
-            except Exception:
-                pass
+        btn_frame = tk.Frame(canvas, bg=self.BG_COLOR)
+        btn_frame.pack(fill='x', side='bottom')
+
+        btn_style = {
+            'font': ('Segoe UI', 10),
+            'bg': '#2D2D2D',
+            'fg': '#B0B0B0',
+            'activebackground': '#404040',
+            'activeforeground': '#E0E0E0',
+            'relief': 'flat',
+            'padx': 8,
+            'pady': 2,
+            'bd': 0,
+        }
+
+        def make_btn(parent, text, cmd):
+            b = tk.Button(parent, text=text, command=cmd, **btn_style)
+            b.pack(side='left', padx=1, pady=2)
+            return b
+
+        make_btn(btn_frame, 'Home', toolbar.home)
+        make_btn(btn_frame, '\u25C0', toolbar.back)
+        make_btn(btn_frame, '\u25B6', toolbar.forward)
+        make_btn(btn_frame, 'Pan', toolbar.pan)
+        make_btn(btn_frame, 'Zoom', toolbar.zoom)
+        make_btn(btn_frame, '\u2B07', toolbar.save_figure)
+
+        canvas.bind('<Configure>', self._on_canvas_resize)
 
         return fig, ax, canvas_agg, toolbar
 
