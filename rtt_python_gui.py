@@ -107,8 +107,9 @@ class RTTViewer:
             [sg.Text('Pattern', font=FONT, text_color=LABEL, size=(8, 1)),
              sg.Input(key='-SERIES_PATTERN-', size=(40, 1), font=FONT,
                       tooltip='<N> = captures a number\n*     = matches anything\n\nExample:\n  ADC value: <N>  ->  captures "1234"'),
-             sg.Button('?', key='-PATTERN_HELP-', font=FONT, button_color=(SERIES, SURFACE), size=(2, 1),
-                       tooltip='Click for pattern help')],
+             sg.Button('?', key='-PATTERN_HELP-', font=FONT, button_color=(BTN_TEXT, SURFACE), size=(2, 1),
+                       tooltip='Click for pattern help'),
+             sg.Button('Pattern Generator', key='-PICK_PATTERN-', font=FONT, button_color=(BTN_TEXT, SURFACE))],
             [sg.Button('Add', key='-ADD_SERIES-', font=FONT, button_color=(BTN_TEXT, SURFACE)),
              sg.Button('Update', key='-UPDATE_SERIES-', font=FONT, button_color=(BTN_TEXT, SURFACE)),
              sg.Button('Remove', key='-REMOVE_SERIES-', font=FONT, button_color=(DANGER, SURFACE))],
@@ -446,6 +447,65 @@ class RTTViewer:
         v_smooth = np.interp(t_smooth, t, v)
         return t_smooth, v_smooth
 
+    def _generate_pattern(self, log_line, number_str):
+        idx = log_line.find(number_str)
+        if idx == -1:
+            return None
+        before = log_line[:idx]
+        after = log_line[idx + len(number_str):]
+
+        def escape_text(s):
+            s = re.escape(s)
+            s = s.replace(r'\ ', ' ')
+            return s
+
+        if not before and not after:
+            return '<N>'
+        if not before:
+            return '<N>' + escape_text(after)
+        if not after:
+            return escape_text(before) + '<N>'
+        return escape_text(before) + '<N>' + escape_text(after)
+
+    def _open_pattern_picker(self):
+        import tkinter as tk
+
+        FONT = ('Segoe UI', 10)
+        FONT_MONO = ('Consolas', 10)
+
+        dlg = sg.Window('Pattern Helper', [
+            [sg.Text('Paste a sample log line:', font=FONT)],
+            [sg.Multiline(key='-PICK_LOG-', size=(60, 3), font=FONT_MONO, no_scrollbar=True)],
+            [sg.Text('Type the number to capture from that line:', font=FONT)],
+            [sg.Input(key='-PICK_NUM-', size=(20, 1), font=FONT_MONO)],
+            [sg.Text('Generated pattern:', font=FONT, text_color='#4EA88A')],
+            [sg.Text('', key='-PICK_PREVIEW-', size=(55, 1), font=FONT_MONO, text_color='#E0E0E0')],
+            [sg.Button('Apply', key='-PICK_APPLY-', font=FONT, button_color=('#FFFFFF', '#2D6A9F')),
+             sg.Button('Cancel', key='-PICK_CANCEL-', font=FONT, button_color=('#DCDCDC', '#2D2D2D'))]
+        ], modal=True, font=FONT)
+
+        while True:
+            event, values = dlg.read()
+            if event in (sg.WIN_CLOSED, '-PICK_CANCEL-'):
+                dlg.close()
+                return None
+            if event == '-PICK_APPLY-':
+                log_line = values['-PICK_LOG-'].strip()
+                num_str = values['-PICK_NUM-'].strip()
+                if log_line and num_str:
+                    pattern = self._generate_pattern(log_line, num_str)
+                    if pattern:
+                        dlg.close()
+                        return pattern
+                    else:
+                        sg.popup_error(f'Number "{num_str}" not found in the log line.', font=FONT)
+            else:
+                log_line = values['-PICK_LOG-'].strip()
+                num_str = values['-PICK_NUM-'].strip()
+                if log_line and num_str:
+                    pattern = self._generate_pattern(log_line, num_str)
+                    dlg['-PICK_PREVIEW-'].update(pattern if pattern else 'Number not found in line')
+
     def _update_plot(self):
         canvas_elem = self._window['-CANVAS-']
         canvas = canvas_elem.TKCanvas
@@ -704,6 +764,10 @@ class RTTViewer:
                 title='Pattern Help',
                 font=('Segoe UI', 10)
             )
+        elif event == '-PICK_PATTERN-':
+            pattern = self._open_pattern_picker()
+            if pattern:
+                self._window['-SERIES_PATTERN-'].update(pattern)
         elif event == '-ACTIVE_SERIES-':
             selected_indices = self._window['-ACTIVE_SERIES-'].get_indexes()
             if selected_indices:
