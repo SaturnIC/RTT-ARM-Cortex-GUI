@@ -84,7 +84,7 @@ class RTTViewer:
         sg.theme_button_color((BTN_TEXT, SURFACE))
         sg.theme_element_text_color(LABEL)
 
-        FONT = ('Segoe UI', 10)
+        FONT = ('Segoe UI', 10, 'bold')
         FONT_BOLD = ('Segoe UI', 10, 'bold')
         FONT_MONO = ('Consolas', 10)
         FONT_MONO_SM = ('Consolas', 9)
