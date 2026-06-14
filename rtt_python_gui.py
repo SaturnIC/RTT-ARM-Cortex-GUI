@@ -61,75 +61,75 @@ class RTTViewer:
         # GUI setup
         sg.theme('Dark Gray 13')
 
-        # Create layout with new filter, highlight, and pause elements
+        FONT = ('Segoe UI', 10)
+        FONT_BOLD = ('Segoe UI', 10, 'bold')
+        FONT_MONO = ('Consolas', 10)
+        FONT_MONO_SM = ('Consolas', 9)
+
         log_tab = [
-            [sg.Multiline(size=(80, 20), key='-LOG-', expand_x=True, expand_y=True, font=('Consolas', 10))],
-            [sg.Column([
-                [sg.Text('Filter:'),
-                 sg.Input(key='-FILTER-', size=(20, 1), enable_events=True),
-                 sg.Text('Highlight:'),
-                 sg.Input(key='-HIGHLIGHT-', size=(20, 1), enable_events=True),
-                 sg.Button('Pause', key='-PAUSE-', disabled=False),
-                 sg.Button('Clear', key='-CLEAR-'),
-                 sg.Button('Save', key='-SAVE-')]
-            ])]
+            [sg.Multiline(size=(80, 20), key='-LOG-', expand_x=True, expand_y=True, font=FONT_MONO)],
+            [sg.Text('Filter:', font=FONT), sg.Input(key='-FILTER-', size=(18, 1), enable_events=True, font=FONT),
+             sg.Text('Highlight:', font=FONT), sg.Input(key='-HIGHLIGHT-', size=(18, 1), enable_events=True, font=FONT),
+             sg.Push(),
+             sg.Button('Pause', key='-PAUSE-', font=FONT),
+             sg.Button('Clear', key='-CLEAR-', font=FONT),
+             sg.Button('Save', key='-SAVE-', font=FONT)]
         ]
 
-        # Data Series tab
         data_series_tab = [
-            [sg.Text('Data Series Configuration', font=('Arial', 12, 'bold'))],
+            [sg.Text('Series Configuration', font=FONT_BOLD)],
             [sg.HorizontalSeparator()],
-            [sg.Text('Series Name:'), sg.Input(key='-SERIES_NAME-', size=(25, 1))],
-            [sg.Text('Pattern (<N>=capture number, *=wildcard):'), sg.Input(key='-SERIES_PATTERN-', size=(40, 1))],
-            [sg.Button('Add Series', key='-ADD_SERIES-'), sg.Button('Update Series', key='-UPDATE_SERIES-'), sg.Button('Remove Series', key='-REMOVE_SERIES-')],
+            [sg.Text('Name', font=FONT, size=(8, 1)),
+             sg.Input(key='-SERIES_NAME-', size=(25, 1), font=FONT)],
+            [sg.Text('Pattern', font=FONT, size=(8, 1)),
+             sg.Input(key='-SERIES_PATTERN-', size=(40, 1), font=FONT)],
+            [sg.Button('Add', key='-ADD_SERIES-', font=FONT),
+             sg.Button('Update', key='-UPDATE_SERIES-', font=FONT),
+             sg.Button('Remove', key='-REMOVE_SERIES-', font=FONT)],
             [sg.HorizontalSeparator()],
             [sg.Column([
-                [sg.Text('Defined Series:', font=('Arial', 10, 'bold'))],
+                [sg.Text('Defined Series', font=FONT_BOLD)],
                 [sg.Listbox(values=[f"{s['name']}: {s['pattern']}" for s in self.data_series],
-                           key='-SERIES_LIST-', size=(40, 8), select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True)]
-            ]),
-            sg.Column([
-                [sg.Text('Active Series (Ctrl+Click to select multiple):', font=('Arial', 10, 'bold'))],
+                            key='-SERIES_LIST-', size=(40, 8), font=FONT_MONO_SM,
+                            select_mode=sg.LISTBOX_SELECT_MODE_SINGLE, enable_events=True)]
+            ], vertical_alignment='top'),
+             sg.Column([
+                [sg.Text('Active', font=FONT_BOLD)],
                 [sg.Listbox(values=[s['name'] for s in self.data_series],
-                           key='-ACTIVE_SERIES-', size=(25, 8), select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED, enable_events=True)]
-            ])],
+                            key='-ACTIVE_SERIES-', size=(25, 8), font=FONT_MONO_SM,
+                            select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED, enable_events=True)]
+            ], vertical_alignment='top')],
             [sg.HorizontalSeparator()],
-            [sg.Text('Recorded Values for Selected Series:', font=('Arial', 10, 'bold'))],
-            [sg.Multiline(size=(70, 10), key='-SERIES_VALUES-', expand_x=True, font=('Consolas', 9))]
+            [sg.Text('Recorded Values', font=FONT_BOLD)],
+            [sg.Multiline(size=(70, 10), key='-SERIES_VALUES-', expand_x=True, font=FONT_MONO_SM, disabled=True)]
         ]
 
         plot_tab = [
-            [sg.Text('Series 1:'), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True),
-             sg.Text('Series 2:'), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True),
-             sg.Text('Series 3:'), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True),
-             sg.Push(), sg.Button('Clear Plot', key='-CLEAR_PLOT-')],
+            [sg.Text('Series 1:', font=FONT), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
+             sg.Text('Series 2:', font=FONT), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
+             sg.Text('Series 3:', font=FONT), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
+             sg.Push(), sg.Button('Clear Plot', key='-CLEAR_PLOT-', font=FONT)],
             [sg.Canvas(key='-CANVAS-', size=(800, 600), expand_x=True, expand_y=True)]
         ]
 
         self._layout = [
-            [sg.Text('ARM Cortex RTT GUI', size=(20, 1), justification='center')],
-            [sg.Frame('Configuration', [
-                [sg.Text('MCU Chip Name:', size=(14, 1)),
-                sg.Text("", size=(1, 1)),  # horizontal spacer
-                sg.Combo(self._build_mcu_combo_values(),
-                        default_value='DEMO_MCU' if demo else 'STM32F427II',
-                        key='-MCU-', size=(20, 1), enable_events=True, auto_size_text=False)],
-                [sg.Text('Interface:', size=(14, 1)),
-                sg.Text("", size=(1, 1)),  # horizontal spacer
-                sg.Combo(['SWD', 'JTAG'], default_value=self.last_interface,
-                        key='-INTERFACE-', size=(10, 1), auto_size_text=False)],
-                ], pad=((10,30),(10,10))),
-            sg.Frame('Connection', [
-                [sg.Button('Connect', key='-CONNECT-'),
-                sg.Button('Disconnect', key='-DISCONNECT-', disabled=True)],
-                [sg.Text('Status: Disconnected', key='-STATUS-', size=(20, 1))]
-                ], pad=((20,10),(10,10)))
-            ],
+            [sg.Text('MCU:', font=FONT),
+             sg.Combo(self._build_mcu_combo_values(),
+                      default_value='DEMO_MCU' if demo else 'STM32F427II',
+                      key='-MCU-', size=(20, 1), enable_events=True, auto_size_text=False, font=FONT),
+             sg.Text('Interface:', font=FONT, pad=((15, 0), (0, 0))),
+             sg.Combo(['SWD', 'JTAG'], default_value=self.last_interface,
+                      key='-INTERFACE-', size=(8, 1), auto_size_text=False, font=FONT),
+             sg.Push(),
+             sg.Button('Connect', key='-CONNECT-', font=FONT_BOLD),
+             sg.Button('Disconnect', key='-DISCONNECT-', disabled=True, font=FONT),
+             sg.Text('Disconnected', key='-STATUS-', font=FONT, text_color='#A0A0A0', pad=((15, 0), (0, 0)))],
+            [sg.HorizontalSeparator()],
             [sg.TabGroup([
-                [sg.Tab('Log', log_tab, key='-LOG_TAB-'),
-                 sg.Tab('Data Series', data_series_tab, key='-DATA_SERIES_TAB-'),
-                 sg.Tab('Plot', plot_tab, key='-PLOT_TAB-')]
-            ], expand_x=True, expand_y=True)]
+                [sg.Tab('Log', log_tab, key='-LOG_TAB-', font=FONT),
+                 sg.Tab('Data Series', data_series_tab, key='-DATA_SERIES_TAB-', font=FONT),
+                 sg.Tab('Plot', plot_tab, key='-PLOT_TAB-', font=FONT)]
+            ], expand_x=True, expand_y=True, font=FONT_BOLD)]
         ]
 
         self._window = sg.Window('ARM Cortex RTT GUI', self._layout, finalize=True, resizable=True)
@@ -188,9 +188,10 @@ class RTTViewer:
         self.demo = demo
 
     def _update_gui_status(self, connected):
-        self._window['-STATUS-'].update(
-            'Status: Connected' if connected else 'Status: Disconnected'
-        )
+        if connected:
+            self._window['-STATUS-'].update('Connected', text_color='#6EE7B7')
+        else:
+            self._window['-STATUS-'].update('Disconnected', text_color='#A0A0A0')
         self._window['-CONNECT-'].update(disabled=connected)
         self._window['-DISCONNECT-'].update(disabled=not connected)
         #self._window['-PAUSE-'].update(disabled=not connected)
