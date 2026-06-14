@@ -128,15 +128,16 @@ class RTTViewer:
                             select_mode=sg.LISTBOX_SELECT_MODE_EXTENDED, enable_events=True)]
             ], vertical_alignment='top')],
             [sg.HorizontalSeparator()],
-            [sg.Text('Recorded Values', font=FONT_BOLD, text_color=SERIES)],
+            [sg.Text('Recorded Values', font=FONT_BOLD, text_color=SERIES),
+             sg.Push(),
+             sg.Button('Clear Data', key='-CLEAR_DATA-', font=FONT, button_color=(DANGER, SURFACE))],
             [sg.Multiline(size=(70, 10), key='-SERIES_VALUES-', expand_x=True, font=FONT_MONO_SM, disabled=True)]
         ], expand_x=True, expand_y=True, pad=(0, (4, 0)))]]
 
         plot_tab = [[sg.Column([
             [sg.Text('Series 1:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
              sg.Text('Series 2:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
-             sg.Text('Series 3:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
-             sg.Push(), sg.Button('Clear Plot', key='-CLEAR_PLOT-', font=FONT, button_color=(BTN_TEXT, SURFACE))],
+             sg.Text('Series 3:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True, font=FONT)],
             [sg.Canvas(key='-CANVAS-', size=(800, 600), expand_x=True, expand_y=True)]
         ], expand_x=True, expand_y=True, pad=(0, (4, 0)))]]
 
@@ -553,9 +554,11 @@ class RTTViewer:
             self.log_view.clear_log()
             self.series_data = {}  # Clear all series data
             self._update_series_values_view()
-        elif event == '-CLEAR_PLOT-':
+        elif event == '-CLEAR_DATA-':
             self.series_data = {}
             self._last_plot_data_lengths = {}
+            self._last_series_values_content = ""
+            self._window['-SERIES_VALUES-'].update('')
             self._update_plot()
         elif event == '-SAVE-':
             # Open a file save dialog
