@@ -820,9 +820,8 @@ class RTTViewer:
     def _update_series_values_view(self):
         """Update the series values view with recorded data"""
         if not self.selected_series_for_view or self.selected_series_for_view not in self.series_data:
-            if self._last_series_values_content:
-                self._window['-SERIES_VALUES-'].update('')
-                self._last_series_values_content = ""
+            self._window['-SERIES_VALUES-'].update('')
+            self._last_series_values_content = ""
             return
 
         data = self.series_data[self.selected_series_for_view]
