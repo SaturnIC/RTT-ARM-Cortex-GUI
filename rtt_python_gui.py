@@ -149,9 +149,9 @@ class RTTViewer:
              sg.Combo(['SWD', 'JTAG'], default_value=self.last_interface,
                       key='-INTERFACE-', size=(8, 1), auto_size_text=False, font=FONT),
              sg.Push(),
-             sg.Button('Connect', key='-CONNECT-', font=FONT_BOLD, button_color=('#FFFFFF', '#2D6A9F')),
-             sg.Button('Disconnect', key='-DISCONNECT-', disabled=True, font=FONT, button_color=(BTN_TEXT, SURFACE)),
-             sg.Text('Disconnected', key='-STATUS-', font=FONT, text_color=MUTED, pad=((15, 0), (0, 0)))],
+             sg.Button('Connect', key='-CONNECT-', font=FONT_BOLD, button_color=('#FFFFFF', '#2D6A9F'), pad=((5, 5), (0, 0))),
+             sg.Button('Disconnect', key='-DISCONNECT-', disabled=True, font=FONT, button_color=('#DCDCDC', '#3A2020'), pad=((0, 10), (0, 0))),
+             sg.Text('\u25CF', key='-STATUS_DOT-', font=('Segoe UI', 12), text_color='#909090', pad=(0, 0))],
             [sg.HorizontalSeparator()],
             [sg.TabGroup([
                 [sg.Tab('Log', log_tab, key='-LOG_TAB-'),
@@ -220,11 +220,12 @@ class RTTViewer:
 
     def _update_gui_status(self, connected):
         if connected:
-            self._window['-STATUS-'].update('Connected', text_color='#5FA05F')
+            self._window['-STATUS_DOT-'].update(text_color='#5FA05F')
+            self._window['-DISCONNECT-'].update(disabled=False, button_color=('#DCDCDC', '#802020'))
         else:
-            self._window['-STATUS-'].update('Disconnected', text_color='#909090')
+            self._window['-STATUS_DOT-'].update(text_color='#909090')
+            self._window['-DISCONNECT-'].update(disabled=True, button_color=('#DCDCDC', '#3A2020'))
         self._window['-CONNECT-'].update(disabled=connected)
-        self._window['-DISCONNECT-'].update(disabled=not connected)
         #self._window['-PAUSE-'].update(disabled=not connected)
 
     def _log_processing_thread(self):
