@@ -105,7 +105,10 @@ class RTTViewer:
             [sg.Text('Name', font=FONT, text_color=LABEL, size=(8, 1)),
              sg.Input(key='-SERIES_NAME-', size=(25, 1), font=FONT)],
             [sg.Text('Pattern', font=FONT, text_color=LABEL, size=(8, 1)),
-             sg.Input(key='-SERIES_PATTERN-', size=(40, 1), font=FONT)],
+             sg.Input(key='-SERIES_PATTERN-', size=(40, 1), font=FONT,
+                      tooltip='<N> = captures a number\n*     = matches anything\n\nExample:\n  ADC value: <N>  ->  captures "1234"'),
+             sg.Button('?', key='-PATTERN_HELP-', font=FONT, button_color=(SERIES, SURFACE), size=(2, 1),
+                       tooltip='Click for pattern help')],
             [sg.Button('Add', key='-ADD_SERIES-', font=FONT, button_color=(BTN_TEXT, SURFACE)),
              sg.Button('Update', key='-UPDATE_SERIES-', font=FONT, button_color=(BTN_TEXT, SURFACE)),
              sg.Button('Remove', key='-REMOVE_SERIES-', font=FONT, button_color=(DANGER, SURFACE))],
@@ -676,6 +679,31 @@ class RTTViewer:
                 self._save_config()
             else:
                 sg.popup_error('Please select a series to remove!')
+        elif event == '-PATTERN_HELP-':
+            sg.popup(
+                'Pattern Help\n'
+                '\n'
+                'Patterns define how to extract numeric values from log lines.\n'
+                '\n'
+                'Special tokens:\n'
+                '  <N>  - Captures a number (integer or decimal)\n'
+                '  *    - Matches any text (wildcard)\n'
+                '\n'
+                'Examples:\n'
+                '  Log line:  "ADC value: 3.14 V"\n'
+                '  Pattern:   "ADC value: <N> V"\n'
+                '  Result:    captures 3.14\n'
+                '\n'
+                '  Log line:  "Sensor1=100 Sensor2=200"\n'
+                '  Pattern:   "Sensor1=<N> *"\n'
+                '  Result:    captures 100\n'
+                '\n'
+                '  Log line:  "Temperature: 25.6"\n'
+                '  Pattern:   "*: <N>"\n'
+                '  Result:    captures 25.6',
+                title='Pattern Help',
+                font=('Segoe UI', 10)
+            )
         elif event == '-ACTIVE_SERIES-':
             selected_indices = self._window['-ACTIVE_SERIES-'].get_indexes()
             if selected_indices:
