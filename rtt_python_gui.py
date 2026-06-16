@@ -141,7 +141,8 @@ class RTTViewer:
         plot_tab = [[sg.Column([
             [sg.Text('Series 1:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_1-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
              sg.Text('Series 2:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_2-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
-             sg.Text('Series 3:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True, font=FONT)],
+             sg.Text('Series 3:', font=FONT, text_color=SERIES), sg.Combo(['—'], default_value='—', key='-PLOT_SERIES_3-', size=(20, 1), enable_events=True, readonly=True, font=FONT),
+             sg.Checkbox('Separate Y-axes', key='-SEPARATE_Y_AXES-', default=True, enable_events=True, font=FONT, text_color=LABEL)],
             [sg.Canvas(key='-CANVAS-', size=(800, 600), expand_x=True, expand_y=True)]
         ], expand_x=True, expand_y=True, pad=(0, (4, 0)))]]
 
@@ -211,9 +212,11 @@ class RTTViewer:
         self._last_plot_data_lengths = {}
         self.plot_fig = None
         self.plot_ax = None
+        self.plot_axes = []  # List of axes for separate y-axes mode
         self.plot_canvas_agg = None
         self.plot_lines = {}
         self.plot_toolbar = None
+        self.separate_y_axes = True
 
         # Populate series UI with loaded data
         self._update_series_ui()
@@ -513,6 +516,11 @@ class RTTViewer:
         if self.plot_fig is None:
             self.plot_fig, self.plot_ax, self.plot_canvas_agg, self.plot_toolbar = self._init_plot(canvas)
 
+        # Remove extra axes from previous update
+        for ax in self.plot_axes:
+            ax.remove()
+        self.plot_axes = []
+
         self.plot_ax.clear()
         self.plot_lines = {}
         has_data = False
@@ -527,13 +535,48 @@ class RTTViewer:
         self.plot_ax.set_axisbelow(True)
 
         plot_series = [s for s in self.selected_plot_series if s]
-        all_values = []
         global_start_time = None
         for series_name in plot_series:
             if series_name in self.series_data and self.series_data[series_name]:
                 t0 = self.series_data[series_name][0][0]
                 if global_start_time is None or t0 < global_start_time:
                     global_start_time = t0
+
+        if self.separate_y_axes and len(plot_series) > 1:
+            has_data = self._plot_separate_axes(plot_series, global_start_time)
+        else:
+            has_data = self._plot_shared_axes(plot_series, global_start_time)
+
+        if has_data:
+            self.plot_ax.set_xlabel('Time  (s)', color=self.TEXT_COLOR, fontsize=10, labelpad=8)
+            # Combine legends from all axes
+            all_handles = []
+            all_labels = []
+            for ax in [self.plot_ax] + self.plot_axes:
+                handles, labels = ax.get_legend_handles_labels()
+                all_handles.extend(handles)
+                all_labels.extend(labels)
+            if all_handles:
+                legend = self.plot_ax.legend(
+                    all_handles, all_labels,
+                    facecolor=self.SURFACE_COLOR, edgecolor=self.SPINE_COLOR,
+                    labelcolor=self.TEXT_COLOR, fontsize=9, fancybox=True,
+                    framealpha=0.85, borderpad=0.8, handlelength=1.5
+                )
+                legend.get_frame().set_linewidth(0.5)
+        else:
+            self.plot_ax.text(
+                0.5, 0.5, 'No data yet', transform=self.plot_ax.transAxes,
+                ha='center', va='center', color=self.TEXT_COLOR, fontsize=13,
+                fontstyle='italic', alpha=0.6
+            )
+
+        self.plot_fig.tight_layout(pad=1.5)
+        self.plot_canvas_agg.draw()
+
+    def _plot_shared_axes(self, plot_series, global_start_time):
+        has_data = False
+        all_values = []
 
         for i, series_name in enumerate(plot_series):
             if series_name in self.series_data and self.series_data[series_name]:
@@ -579,23 +622,79 @@ class RTTViewer:
                     )
 
         if has_data:
-            self.plot_ax.set_xlabel('Time  (s)', color=self.TEXT_COLOR, fontsize=10, labelpad=8)
             self.plot_ax.set_ylabel('Value', color=self.TEXT_COLOR, fontsize=10, labelpad=8)
-            legend = self.plot_ax.legend(
-                facecolor=self.SURFACE_COLOR, edgecolor=self.SPINE_COLOR,
-                labelcolor=self.TEXT_COLOR, fontsize=9, fancybox=True,
-                framealpha=0.85, borderpad=0.8, handlelength=1.5
-            )
-            legend.get_frame().set_linewidth(0.5)
-        else:
-            self.plot_ax.text(
-                0.5, 0.5, 'No data yet', transform=self.plot_ax.transAxes,
-                ha='center', va='center', color=self.TEXT_COLOR, fontsize=13,
-                fontstyle='italic', alpha=0.6
+
+        return has_data
+
+    def _plot_separate_axes(self, plot_series, global_start_time):
+        has_data = False
+
+        for i, series_name in enumerate(plot_series):
+            if series_name not in self.series_data or not self.series_data[series_name]:
+                continue
+
+            has_data = True
+            data = self.series_data[series_name]
+            values = [d[1] for d in data]
+            times = [d[0] - global_start_time for d in data]
+            color = self.COLORS[i % len(self.COLORS)]
+
+            if i == 0:
+                ax = self.plot_ax
+            else:
+                ax = self.plot_ax.twinx()
+                self.plot_axes.append(ax)
+                ax.set_ylim(auto=True)
+
+            # Style the axis
+            ax.spines['top'].set_visible(False)
+            if i == 0:
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_color(color)
+                ax.spines['left'].set_linewidth(1.5)
+                ax.tick_params(axis='y', colors=color, labelsize=9, length=4, width=0.8)
+                ax.set_ylabel(series_name, color=color, fontsize=10, labelpad=8)
+            else:
+                ax.spines['left'].set_visible(False)
+                ax.spines['right'].set_color(color)
+                ax.spines['right'].set_linewidth(1.5)
+                ax.tick_params(axis='y', colors=color, labelsize=9, length=4, width=0.8)
+                ax.set_ylabel(series_name, color=color, fontsize=10, labelpad=8)
+                # Offset the spine to avoid overlap
+                ax.spines['right'].set_position(('outward', 60 * (i - 1)))
+
+            ax.tick_params(axis='x', colors=self.TEXT_COLOR, labelsize=9, length=4, width=0.8)
+
+            t_smooth, v_smooth = self._smooth_data(times, values)
+
+            ax.plot(
+                t_smooth, v_smooth, color=color, linewidth=4,
+                alpha=0.25, solid_capstyle='round'
             )
 
-        self.plot_fig.tight_layout(pad=1.5)
-        self.plot_canvas_agg.draw()
+            line, = ax.plot(
+                t_smooth, v_smooth, label=series_name, color=color,
+                linewidth=2, solid_capstyle='round', antialiased=True
+            )
+            self.plot_lines[series_name] = line
+
+            # Fill area
+            y_min, y_max = min(values), max(values)
+            y_range = y_max - y_min
+            if y_range < 1e-10:
+                y_range = max(abs(y_max) * 0.1, 1.0)
+            y_margin = y_range * 0.05
+            ax.fill_between(
+                t_smooth, v_smooth, y_min - y_margin,
+                alpha=0.08, color=color, linewidth=0
+            )
+
+        # Only first axis shows grid
+        if has_data:
+            self.plot_ax.grid(True, color=self.GRID_COLOR, linewidth=0.5, alpha=0.6, linestyle='-')
+            self.plot_ax.set_axisbelow(True)
+
+        return has_data
 
     def _on_canvas_resize(self, event):
         if self.plot_fig and event.width > 1 and event.height > 1:
@@ -673,6 +772,9 @@ class RTTViewer:
             self.selected_plot_series[idx] = '' if selected == '—' else selected
             self.active_series_names = [s for s in self.selected_plot_series if s]
             self._last_plot_data_lengths = {}
+            self._update_plot()
+        elif event == '-SEPARATE_Y_AXES-':
+            self.separate_y_axes = values['-SEPARATE_Y_AXES-']
             self._update_plot()
         elif event == '-ADD_SERIES-':
             name = values['-SERIES_NAME-'].strip()

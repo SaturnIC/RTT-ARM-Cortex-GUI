@@ -1,7 +1,7 @@
 # RTT ARM Cortex SWD/JTAG Logging GUI
 
 ![RTT GUI Logs Screenshot](./docs/logs-view.png)
-![RTT GUI Plot Screenshot](./docs/plot-view.png)
+![RTT GUI Plot Screenshot](./docs/plot-view-mult.png)
 
 ## Table of Contents
 - [Overview](#overview)
